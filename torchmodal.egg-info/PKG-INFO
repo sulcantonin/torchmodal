@@ -1,0 +1,243 @@
+Metadata-Version: 2.4
+Name: torchmodal
+Version: 0.1.0
+Summary: Differentiable Modal Logic for PyTorch — Modal Logical Neural Networks (MLNNs)
+Author-email: Antonin Sulc <asulc@lbl.gov>
+License: MIT
+Project-URL: Homepage, https://github.com/sulcantonin/MLNN_public
+Project-URL: Documentation, https://github.com/sulcantonin/MLNN_public
+Project-URL: Repository, https://github.com/sulcantonin/MLNN_public
+Keywords: modal-logic,neurosymbolic,kripke-semantics,differentiable-reasoning,epistemic-logic,pytorch
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: torch>=2.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+
+# torchmodal
+
+**Differentiable Modal Logic for PyTorch**
+
+A PyTorch library implementing Modal Logical Neural Networks (MLNNs) — the first framework enabling differentiable reasoning over necessity and possibility by integrating neural networks with Kripke semantics from modal logic.
+
+Based on: *Sulc (2026), "Modal Logical Neural Networks", Proceedings of Machine Learning Research.*
+
+## Installation
+
+```bash
+pip install -e .
+```
+
+## Quick Start
+
+```python
+import torch
+import torchmodal
+from torchmodal import nn, KripkeModel
+
+# Create a 3-world Kripke model with learnable accessibility
+model = KripkeModel(
+    num_worlds=3,
+    accessibility=nn.LearnableAccessibility(3, init_bias=-2.0),
+    tau=0.1,
+)
+
+# Add propositions
+model.add_proposition("safe", learnable=True)
+model.add_proposition("online", learnable=False)
+
+# Evaluate modal operators
+A = model.get_accessibility()
+box_safe = model.necessity("safe", A)       # □(safe) — necessarily safe
+dia_online = model.possibility("online", A)  # ♢(online) — possibly online
+
+# Compute contradiction loss
+loss = model.contradiction_loss()
+```
+
+## Architecture
+
+```
+torchmodal/
+├── __init__.py          # Public API
+├── functional.py        # Stateless functional operators (like torch.nn.functional)
+├── nn/
+│   ├── operators.py     # Softmin, Softmax, ConvPool modules
+│   ├── connectives.py   # Negation, Conjunction, Disjunction, Implication
+│   ├── modal.py         # Necessity (□), Possibility (♢) neurons
+│   └── accessibility.py # Fixed, Learnable, Metric accessibility relations
+├── kripke.py            # KripkeModel, Proposition
+├── losses.py            # ContradictionLoss, ModalLoss, SparsityLoss, CrystallizationLoss
+├── inference.py         # Upward-downward bound propagation
+├── systems.py           # EpistemicOperator, DoxasticOperator, TemporalOperator, MultiAgentKripke
+└── utils.py             # Temperature annealing, accessibility builders, decoding
+```
+
+## Core Concepts
+
+### Differentiable Kripke Semantics
+
+A Kripke model M = ⟨W, R, V⟩ is realized as differentiable tensors:
+
+- **W** (Worlds): A finite set of possible worlds — agents, time steps, or contexts
+- **R** (Accessibility): A relation determining which worlds can "see" each other
+- **V** (Valuation): Truth bounds [L, U] ⊆ [0, 1] for each proposition in each world
+
+### Modal Operators
+
+| Operator | Symbol | Semantics | Implementation |
+|----------|--------|-----------|----------------|
+| Necessity | □ | True in *all* accessible worlds | `softmin` over weighted implications |
+| Possibility | ♢ | True in *some* accessible world | `softmax` over weighted conjunctions |
+| Knowledge | K_a | Agent *a* knows ϕ | □ restricted to agent's row |
+| Belief | B_a | Agent *a* believes ϕ | □ with non-reflexive access |
+| Globally | G | ϕ at all future times | □ over temporal accessibility |
+| Finally | F | ϕ at some future time | ♢ over temporal accessibility |
+
+### Accessibility Relations
+
+```python
+# Fixed (deductive mode): enforce known rules
+R = torchmodal.build_sudoku_accessibility(3)
+access = nn.FixedAccessibility(R)
+
+# Learnable direct matrix (small worlds)
+access = nn.LearnableAccessibility(num_worlds=7, init_bias=-2.0)
+
+# Metric learning (scales to 20,000+ worlds)
+access = nn.MetricAccessibility(num_worlds=10000, embed_dim=64)
+```
+
+### Loss Functions
+
+```python
+# Combined modal loss: L_total = L_task + β * L_contra
+criterion = torchmodal.ModalLoss(beta=0.3)
+loss = criterion(task_loss, model.all_bounds())
+
+# Sparsity regularization on accessibility
+sparse_loss = torchmodal.SparsityLoss(lambda_sparse=0.05)
+
+# Crystallization for SAT mode (forces crisp 0/1 assignments)
+crystal_loss = torchmodal.CrystallizationLoss()
+```
+
+## Examples
+
+### Epistemic Trust Learning (CaSiNo / Diplomacy)
+
+```python
+from torchmodal import MultiAgentKripke
+
+# 7 agents (Diplomacy powers), 3 time steps
+kripke = MultiAgentKripke(
+    num_agents=7,
+    num_steps=3,
+    learnable_epistemic=True,
+    init_bias=-2.0,
+)
+
+# Evaluate "agent knows claim is consistent over time"
+K_G_claim = kripke.K_G(claim_bounds)
+
+# Learn trust from contradiction minimization
+A = kripke.get_epistemic_accessibility()
+```
+
+### Sudoku as Constraint Satisfaction
+
+```python
+import torchmodal
+from torchmodal import KripkeModel, nn
+
+# 81 worlds (cells), fixed Sudoku accessibility
+R = torchmodal.build_sudoku_accessibility(3)
+model = KripkeModel(
+    num_worlds=81,
+    accessibility=nn.FixedAccessibility(R),
+)
+
+# 9 propositions (digits)
+for d in range(1, 10):
+    model.add_proposition(f"d{d}", learnable=True)
+
+# Train with contradiction loss + crystallization
+contra_loss = torchmodal.ContradictionLoss(squared=True)
+crystal_loss = torchmodal.CrystallizationLoss()
+```
+
+### POS Tagging with Grammatical Guardrails
+
+```python
+from torchmodal import nn, functional as F
+
+# 3-world structure: Real, Pessimistic, Exploratory
+box = nn.Necessity(tau=0.1)
+access = nn.LearnableAccessibility(3)
+
+# Enforce axiom: □¬(DET_i ∧ VERB_{i+1})
+A = access()
+det_bounds = ...   # from proposer network
+verb_bounds = ...
+conj = F.conjunction(det_bounds, verb_bounds)
+neg_conj = F.negation(conj)
+box_constraint = box(neg_conj, A)  # must be high (true)
+```
+
+### Formula Graph Inference
+
+```python
+from torchmodal import FormulaGraph, upward_downward
+
+graph = FormulaGraph()
+graph.add_atomic("p")
+graph.add_atomic("q")
+graph.add_conjunction("p_and_q", "p", "q")
+graph.add_necessity("box_p_and_q", "p_and_q")
+
+# Initialize bounds
+bounds = {
+    "p": torch.tensor([[0.8, 1.0], [0.3, 0.5], [0.9, 1.0]]),
+    "q": torch.tensor([[0.7, 0.9], [0.6, 0.8], [0.4, 0.6]]),
+    "p_and_q": torch.tensor([[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]]),
+    "box_p_and_q": torch.tensor([[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]]),
+}
+
+# Run inference
+A = torch.eye(3)  # reflexive accessibility
+tightened = upward_downward(graph, bounds, A, tau=0.1)
+```
+
+## Two Learning Modes
+
+| Mode | Fixed | Learned | Use Case |
+|------|-------|---------|----------|
+| **Deductive** | Accessibility R | Propositions V | POS guardrails, Sudoku, OOD detection |
+| **Inductive** | Propositions V | Accessibility A_θ | Trust learning, social structure discovery |
+
+## Citation
+
+```bibtex
+@inproceedings{sulc2026modal,
+  title={Modal Logical Neural Networks},
+  author={Sulc, Antonin},
+  booktitle={Proceedings of Machine Learning Research},
+  year={2026}
+}
+```
+
+## License
+
+MIT
