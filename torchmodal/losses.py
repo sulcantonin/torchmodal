@@ -27,6 +27,7 @@ __all__ = [
     "ModalLoss",
     "SparsityLoss",
     "CrystallizationLoss",
+    "AxiomRegularization",
 ]
 
 
@@ -229,3 +230,84 @@ class CrystallizationLoss(nn.Module):
         if self.reduction == "sum":
             return entropy.sum()
         return entropy.mean()
+
+
+class AxiomRegularization(nn.Module):
+    r"""Regularization losses for enforcing modal logic axiom systems.
+
+    Provides differentiable penalties that encourage the learned
+    accessibility relation to satisfy structural properties:
+
+    - **Axiom T** (Reflexivity): ``A[i,i] = 1`` for all *i*.
+      System T: □ϕ → ϕ (knowledge is veridical).
+    - **Axiom 4** (Transitivity): ``A @ A ≤ A``.
+      System S4: □ϕ → □□ϕ (positive introspection).
+    - **Axiom B** (Symmetry): ``A ≈ Aᵀ``.
+      System B: ϕ → □♢ϕ (Brouwerian axiom).
+
+    These can be combined to enforce specific modal logic systems:
+    - **System T** = K + Reflexivity
+    - **System S4** = K + Reflexivity + Transitivity
+    - **System S5** = K + Reflexivity + Transitivity + Symmetry
+    - **System B** = K + Reflexivity + Symmetry
+
+    Args:
+        reflexivity: Weight for reflexivity penalty. Default 0.0.
+        transitivity: Weight for transitivity penalty. Default 0.0.
+        symmetry: Weight for symmetry penalty. Default 0.0.
+
+    Example::
+
+        >>> # Enforce System S4 (reflexive + transitive)
+        >>> reg = AxiomRegularization(reflexivity=1.0, transitivity=0.5)
+        >>> A = model.get_accessibility()
+        >>> loss = reg(A)
+    """
+
+    def __init__(
+        self,
+        reflexivity: float = 0.0,
+        transitivity: float = 0.0,
+        symmetry: float = 0.0,
+    ) -> None:
+        super().__init__()
+        self.reflexivity = reflexivity
+        self.transitivity = transitivity
+        self.symmetry = symmetry
+
+    def forward(self, accessibility: Tensor) -> Tensor:
+        """
+        Args:
+            accessibility: Accessibility matrix ``(|W|, |W|)`` in [0, 1].
+
+        Returns:
+            Scalar regularization loss.
+        """
+        loss = torch.tensor(0.0, device=accessibility.device)
+
+        if self.reflexivity > 0:
+            # Axiom T: diagonal should be 1.0
+            diag = torch.diagonal(accessibility)
+            loss = loss + self.reflexivity * torch.mean((1.0 - diag) ** 2)
+
+        if self.transitivity > 0:
+            # Axiom 4: A @ A should be <= A (elementwise)
+            A_sq = torch.mm(accessibility, accessibility)
+            # Clamp to [0,1] range for comparison
+            A_sq = torch.clamp(A_sq, 0.0, 1.0)
+            violation = torch.relu(A_sq - accessibility)
+            loss = loss + self.transitivity * torch.mean(violation ** 2)
+
+        if self.symmetry > 0:
+            # Axiom B: A should equal A^T
+            diff = accessibility - accessibility.t()
+            loss = loss + self.symmetry * torch.mean(diff ** 2)
+
+        return loss
+
+    def extra_repr(self) -> str:
+        return (
+            f"reflexivity={self.reflexivity}, "
+            f"transitivity={self.transitivity}, "
+            f"symmetry={self.symmetry}"
+        )
