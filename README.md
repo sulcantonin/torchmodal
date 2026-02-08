@@ -8,7 +8,7 @@
 
 A PyTorch library implementing Modal Logical Neural Networks (MLNNs) — the first framework enabling differentiable reasoning over necessity and possibility by integrating neural networks with Kripke semantics from modal logic.
 
-Based on: *Sulc (2026), "Modal Logical Neural Networks", Proceedings of Machine Learning Research.*
+
 
 ## Installation
 
@@ -205,12 +205,17 @@ tightened = upward_downward(graph, bounds, A, tau=0.1)
 
 ## Citation
 
+If you use torchmodal in your research, please cite:
+
 ```bibtex
-@inproceedings{sulc2026modal,
+@misc{sulc2025modallogicalneuralnetworks,
   title={Modal Logical Neural Networks},
-  author={Sulc, Antonin},
-  booktitle={Proceedings of Machine Learning Research},
-  year={2026}
+  author={Antonin Sulc},
+  year={2025},
+  eprint={2512.03491},
+  archivePrefix={arXiv},
+  primaryClass={cs.LG},
+  url={https://arxiv.org/abs/2512.03491},
 }
 ```
 
