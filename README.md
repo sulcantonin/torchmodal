@@ -1,5 +1,9 @@
 # torchmodal
 
+<p align="center">
+  <img src="misc/torchmodal.png" alt="torchmodal logo" width="320">
+</p>
+
 **Differentiable Modal Logic for PyTorch**
 
 A PyTorch library implementing Modal Logical Neural Networks (MLNNs) — the first framework enabling differentiable reasoning over necessity and possibility by integrating neural networks with Kripke semantics from modal logic.
