@@ -1,8 +1,6 @@
 # torchmodal
 
-<p align="center">
-  <img src="https://github.com/sulcantonin/torchmodal/blob/main/misc/torchmodal.png" alt="torchmodal logo" width="320">
-</p>
+![](https://raw.githubusercontent.com/sulcantonin/torchmodal/main/misc/torchmodal.png)
 
 **Differentiable Modal Logic for PyTorch**
 
