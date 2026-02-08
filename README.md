@@ -1,6 +1,6 @@
 # torchmodal
 
-![](https://raw.githubusercontent.com/sulcantonin/torchmodal/main/misc/torchmodal.png)
+![](https://github.com/sulcantonin/torchmodal/blob/main/misc/torchmodal.png)
 
 **Differentiable Modal Logic for PyTorch**
 
