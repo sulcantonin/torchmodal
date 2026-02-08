@@ -64,6 +64,7 @@ from torchmodal.losses import (
     ModalLoss,
     SparsityLoss,
     CrystallizationLoss,
+    AxiomRegularization,
 )
 from torchmodal.inference import (
     FormulaGraph,
@@ -100,6 +101,7 @@ __all__ = [
     "ModalLoss",
     "SparsityLoss",
     "CrystallizationLoss",
+    "AxiomRegularization",
     # Inference
     "FormulaGraph",
     "FormulaNode",
