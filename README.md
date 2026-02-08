@@ -1,7 +1,7 @@
 # torchmodal
 
 <p align="center">
-  <img src="misc/torchmodal.png" alt="torchmodal logo" width="320">
+  <img src="https://github.com/sulcantonin/torchmodal/blob/main/misc/torchmodal.png" alt="torchmodal logo" width="320">
 </p>
 
 **Differentiable Modal Logic for PyTorch**
