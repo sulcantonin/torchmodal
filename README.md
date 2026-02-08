@@ -112,6 +112,25 @@ crystal_loss = torchmodal.CrystallizationLoss()
 
 ## Examples
 
+All examples are self-contained scripts in [`examples/`](examples/) and can be run directly:
+
+```bash
+python examples/sudoku.py
+```
+
+| Example | Source | Modal Logic | Description |
+|---------|--------|-------------|-------------|
+| [`sudoku.py`](examples/sudoku.py) | Paper Section 5.4 | □, CSP | 4x4 Sudoku via modal contradiction + crystallization |
+| [`temporal_epistemic.py`](examples/temporal_epistemic.py) | `MLNN_TEMPORAL_EPISTEMIC` | K, G, F, K∘G | Learns epistemic accessibility to resolve contradictions |
+| [`epistemic_trust.py`](examples/epistemic_trust.py) | `agent_debug_epistemic` | K_a | Trust learning from promise-keeping behavior |
+| [`doxastic_belief.py`](examples/doxastic_belief.py) | `agent_debug_doxastic` | B_a | Belief calibration and hallucination detection |
+| [`temporal_causal.py`](examples/temporal_causal.py) | `agent_debug_temporal_causal` | □(cause → crash) | Root cause analysis in event traces |
+| [`deontic_boundary.py`](examples/deontic_boundary.py) | `agent_debug_denoic` | O, P | Normative boundary learning (spoofing detection) |
+| [`trust_erosion.py`](examples/trust_erosion.py) | `agent_debug_combined_trust_erosion` | Temporal + Deontic | Retroactive lie detection collapses trust |
+| [`dialect_classification.py`](examples/dialect_classification.py) | `MLNN_DIALECTS_MLNN_CP` | □, ♢ thresholds | OOD detection — 89% Neutral recall trained only on AmE/BrE |
+| [`axiom_ablation.py`](examples/axiom_ablation.py) | `MLNN_AxiomsLogicAblation` | T, 4, B axioms | Effect of reflexivity/transitivity/symmetry on structure learning |
+| [`scalability_ring.py`](examples/scalability_ring.py) | `ablation_final` | □, ♢ | Ring structure recovery with tau/top-k/learnable ablation |
+
 ### Epistemic Trust Learning (CaSiNo / Diplomacy)
 
 ```python
