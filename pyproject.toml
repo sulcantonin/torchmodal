@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "torchmodal"
-version = "0.1.0.1"
+version = "0.1.0.4"
 description = "Differentiable Modal Logic for PyTorch — Modal Logical Neural Networks (MLNNs)"
 readme = "README.md"
 license = {text = "MIT"}
