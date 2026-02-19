@@ -144,3 +144,101 @@ class TestContradiction:
         bounds = torch.tensor([[0.8, 0.3], [0.5, 0.9]])
         assert F.contradiction(bounds).item() > 0.0
         assert abs(F.contradiction(bounds).item() - 0.5) < 1e-6
+
+
+# ---------------------------------------------------------------------------
+# Gradient flow tests
+# ---------------------------------------------------------------------------
+
+
+class TestGradientFlow:
+    """Verify gradients flow correctly through all operators."""
+
+    def test_necessity_grad_wrt_prop_bounds(self):
+        """Gradients flow from necessity output back to proposition bounds."""
+        prop = torch.tensor([[0.7, 0.9], [0.3, 0.5]], requires_grad=True)
+        A = torch.ones(2, 2)
+        result = F.necessity(prop, A, tau=0.1)
+        loss = result.sum()
+        loss.backward()
+        assert prop.grad is not None
+        assert not torch.all(prop.grad == 0)
+
+    def test_necessity_grad_wrt_accessibility(self):
+        """Gradients flow from necessity output back to accessibility."""
+        prop = torch.tensor([[0.7, 0.9], [0.3, 0.5]])
+        A = torch.ones(2, 2, requires_grad=True)
+        result = F.necessity(prop, A, tau=0.1)
+        loss = result.sum()
+        loss.backward()
+        assert A.grad is not None
+        assert not torch.all(A.grad == 0)
+
+    def test_possibility_grad_wrt_prop_bounds(self):
+        """Gradients flow from possibility output back to proposition bounds."""
+        prop = torch.tensor([[0.7, 0.9], [0.3, 0.5]], requires_grad=True)
+        A = torch.ones(2, 2)
+        result = F.possibility(prop, A, tau=0.1)
+        loss = result.sum()
+        loss.backward()
+        assert prop.grad is not None
+        assert not torch.all(prop.grad == 0)
+
+    def test_possibility_grad_wrt_accessibility(self):
+        """Gradients flow from possibility output back to accessibility."""
+        prop = torch.tensor([[0.7, 0.9], [0.3, 0.5]])
+        A = torch.ones(2, 2, requires_grad=True)
+        result = F.possibility(prop, A, tau=0.1)
+        loss = result.sum()
+        loss.backward()
+        assert A.grad is not None
+        assert not torch.all(A.grad == 0)
+
+    def test_conjunction_grad(self):
+        """Gradients flow through Łukasiewicz conjunction."""
+        a = torch.tensor([0.8], requires_grad=True)
+        b = torch.tensor([0.7], requires_grad=True)
+        result = F.conjunction(a, b)
+        result.sum().backward()
+        assert a.grad is not None
+        assert b.grad is not None
+
+    def test_implication_grad(self):
+        """Gradients flow through Łukasiewicz implication."""
+        a = torch.tensor([0.8], requires_grad=True)
+        b = torch.tensor([0.3], requires_grad=True)
+        result = F.implication(a, b)
+        result.sum().backward()
+        assert a.grad is not None
+        assert b.grad is not None
+
+    def test_contradiction_grad(self):
+        """Gradients flow back from contradiction loss."""
+        bounds = torch.tensor([[0.8, 0.3]], requires_grad=True)
+        loss = F.contradiction(bounds)
+        loss.backward()
+        assert bounds.grad is not None
+        assert not torch.all(bounds.grad == 0)
+
+    def test_necessity_no_vanishing_grad(self):
+        """Gradients through necessity don't vanish for moderate tau."""
+        prop = torch.tensor(
+            [[0.6, 0.8], [0.4, 0.6], [0.7, 0.9]], requires_grad=True
+        )
+        A = torch.ones(3, 3)
+        result = F.necessity(prop, A, tau=0.5)
+        loss = result.sum()
+        loss.backward()
+        # With tau=0.5 (not too sharp), gradients should be non-trivial
+        assert prop.grad.abs().max().item() > 1e-4
+
+    def test_possibility_no_vanishing_grad(self):
+        """Gradients through possibility don't vanish for moderate tau."""
+        prop = torch.tensor(
+            [[0.6, 0.8], [0.4, 0.6], [0.7, 0.9]], requires_grad=True
+        )
+        A = torch.ones(3, 3)
+        result = F.possibility(prop, A, tau=0.5)
+        loss = result.sum()
+        loss.backward()
+        assert prop.grad.abs().max().item() > 1e-4

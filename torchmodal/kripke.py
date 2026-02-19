@@ -40,6 +40,9 @@ class Proposition(nn.Module):
 
     Each proposition stores ``[L, U]`` bounds per world in [0, 1].
 
+    For learnable propositions, use :meth:`set_bounds_value` to temporarily
+    set bounds in-place (e.g. in adversarial or minimax setups).
+
     Args:
         name: Human-readable name for the proposition.
         num_worlds: Number of worlds |W|.
@@ -111,6 +114,25 @@ class Proposition(nn.Module):
             )
         self._bounds.copy_(bounds)
 
+    def set_bounds_value(self, bounds: Tensor) -> None:
+        """Set current bounds in-place.
+
+        For learnable propositions, updates internal logits so that the next
+        :attr:`bounds` read returns (approximately) ``bounds``. Use this to
+        temporarily inject bounds (e.g. adversary values in minimax) without
+        removing learnability. For non-learnable propositions, equivalent to
+        :meth:`set_bounds`.
+
+        Args:
+            bounds: Tensor of shape ``(num_worlds, 2)`` in [0, 1].
+        """
+        bounds = bounds.clamp(1e-7, 1.0 - 1e-7)
+        if self._logits is not None:
+            with torch.no_grad():
+                self._logits.data.copy_(torch.logit(bounds))
+        else:
+            self._bounds.copy_(bounds)
+
     def set_world(
         self, world_idx: int, lower: float, upper: float
     ) -> None:
@@ -150,6 +172,9 @@ class KripkeModel(nn.Module):
       updating proposition truth values through gradient descent.
     - **Inductive** (fixed V, learnable R): Discovers relational structure
       by learning the accessibility relation from data.
+
+    Use :meth:`get_proposition` to get a proposition by name, :meth:`get_bounds`
+    for its truth bounds, and :meth:`all_bounds` for a dict of all bounds.
 
     Args:
         num_worlds: Number of possible worlds |W|.
@@ -227,6 +252,10 @@ class KripkeModel(nn.Module):
     def get_proposition(self, name: str) -> Proposition:
         """Retrieve a proposition by name."""
         return self.propositions[name]
+
+    def get_bounds(self, name: str) -> Tensor:
+        """Return truth bounds for proposition ``name``. Shape ``(|W|, 2)``."""
+        return self.propositions[name].bounds
 
     def get_accessibility(
         self, features: Optional[Tensor] = None

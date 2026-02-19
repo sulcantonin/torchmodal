@@ -77,3 +77,73 @@ class TestUpwardDownward:
         # not_p should be tightened to [1-0.7, 1-0.3] = [0.3, 0.7]
         assert abs(result["not_p"][0, 0].item() - 0.3) < 0.1
         assert abs(result["not_p"][0, 1].item() - 0.7) < 0.1
+
+
+class TestInferenceGradientFlow:
+    """Verify gradients flow through the inference loop."""
+
+    def test_grad_through_upward_pass(self):
+        """Gradients from inference output reach atomic proposition bounds."""
+        graph = FormulaGraph()
+        graph.add_atomic("p")
+        graph.add_atomic("q")
+        graph.add_conjunction("p_and_q", "p", "q")
+
+        p_bounds = torch.tensor([[0.8, 1.0], [0.3, 0.5]], requires_grad=True)
+        q_bounds = torch.tensor([[0.7, 0.9], [0.6, 0.8]], requires_grad=True)
+
+        bounds = {
+            "p": p_bounds,
+            "q": q_bounds,
+            "p_and_q": torch.tensor([[0.0, 1.0], [0.0, 1.0]]),
+        }
+
+        A = torch.eye(2)
+        result = upward_downward(graph, bounds, A, max_iterations=1)
+
+        loss = result["p_and_q"].sum()
+        loss.backward()
+        assert p_bounds.grad is not None
+        assert q_bounds.grad is not None
+
+    def test_grad_through_modal_inference(self):
+        """Gradients flow through necessity in inference."""
+        graph = FormulaGraph()
+        graph.add_atomic("p")
+        graph.add_necessity("box_p", "p")
+
+        p_bounds = torch.tensor(
+            [[0.9, 1.0], [0.1, 0.2], [0.8, 0.9]], requires_grad=True
+        )
+
+        bounds = {
+            "p": p_bounds,
+            "box_p": torch.tensor([[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]]),
+        }
+
+        A = torch.ones(3, 3)
+        result = upward_downward(graph, bounds, A, tau=0.1, max_iterations=1)
+
+        loss = result["box_p"].sum()
+        loss.backward()
+        assert p_bounds.grad is not None
+        assert not torch.all(p_bounds.grad == 0)
+
+    def test_grad_through_accessibility(self):
+        """Gradients from inference reach the accessibility matrix."""
+        graph = FormulaGraph()
+        graph.add_atomic("p")
+        graph.add_necessity("box_p", "p")
+
+        bounds = {
+            "p": torch.tensor([[0.9, 1.0], [0.1, 0.2]]),
+            "box_p": torch.tensor([[0.0, 1.0], [0.0, 1.0]]),
+        }
+
+        A = torch.ones(2, 2, requires_grad=True)
+        result = upward_downward(graph, bounds, A, tau=0.1, max_iterations=1)
+
+        loss = result["box_p"].sum()
+        loss.backward()
+        assert A.grad is not None
+        assert not torch.all(A.grad == 0)

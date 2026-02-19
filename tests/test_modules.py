@@ -19,6 +19,14 @@ class TestNecessityModule:
         box = nn.Necessity(tau=0.1, learnable_tau=True)
         assert any(p.requires_grad for p in box.parameters())
 
+    def test_set_tau(self):
+        """set_tau allows annealing from float (buffer cannot be assigned float)."""
+        box = nn.Necessity(tau=0.1)
+        box.set_tau(0.2)
+        assert abs(box.tau.item() - 0.2) < 1e-6
+        box.set_tau(0.05)
+        assert abs(box.tau.item() - 0.05) < 1e-6
+
 
 class TestPossibilityModule:
     def test_forward(self):
@@ -27,6 +35,11 @@ class TestPossibilityModule:
         A = torch.eye(2)
         result = dia(prop, A)
         assert result.shape == (2, 2)
+
+    def test_set_tau(self):
+        dia = nn.Possibility(tau=0.1)
+        dia.set_tau(0.3)
+        assert abs(dia.tau.item() - 0.3) < 1e-6
 
 
 class TestAccessibility:
@@ -112,6 +125,33 @@ class TestKripkeModel:
         assert model.num_propositions == 1
         assert p.bounds.shape == (3, 2)
 
+    def test_get_bounds(self):
+        model = torchmodal.KripkeModel(
+            num_worlds=2,
+            accessibility=nn.FixedAccessibility(torch.eye(2)),
+        )
+        model.add_proposition("q", learnable=False, init=0.5)
+        b = model.get_bounds("q")
+        assert b.shape == (2, 2)
+        with pytest.raises(KeyError):
+            model.get_bounds("nonexistent")
+
+    def test_set_bounds_value_learnable(self):
+        """set_bounds_value updates in-place for learnable propositions."""
+        from torchmodal.kripke import Proposition
+        prop = Proposition("p", num_worlds=2, learnable=True, init=0.5)
+        target = torch.tensor([[0.2, 0.8], [0.1, 0.9]])
+        prop.set_bounds_value(target)
+        assert torch.allclose(prop.bounds, target, atol=1e-5)
+
+    def test_set_bounds_value_non_learnable(self):
+        """set_bounds_value is equivalent to set_bounds for non-learnable."""
+        from torchmodal.kripke import Proposition
+        prop = Proposition("p", num_worlds=2, learnable=False, init=0.5)
+        target = torch.tensor([[0.3, 0.7], [0.0, 1.0]])
+        prop.set_bounds_value(target)
+        assert torch.allclose(prop.bounds, target, atol=1e-5)
+
     def test_necessity_evaluation(self):
         model = torchmodal.KripkeModel(
             num_worlds=3,
@@ -129,6 +169,61 @@ class TestKripkeModel:
         model.add_proposition("p", learnable=True)
         loss = model.contradiction_loss()
         assert loss.item() >= 0.0
+
+
+class TestModuleGradientFlow:
+    """Verify gradient flow through nn.Module wrappers."""
+
+    def test_metric_accessibility_grad(self):
+        """Gradients flow through MetricAccessibility to embeddings."""
+        access = nn.MetricAccessibility(5, embed_dim=16)
+        A = access()
+        loss = A.sum()
+        loss.backward()
+        assert access.embeddings.grad is not None
+        assert not torch.all(access.embeddings.grad == 0)
+
+    def test_metric_accessibility_with_features_grad(self):
+        """Gradients flow through MetricAccessibility encoder to features."""
+        access = nn.MetricAccessibility(5, embed_dim=16, input_dim=32)
+        features = torch.randn(5, 32, requires_grad=True)
+        A = access(features)
+        loss = A.sum()
+        loss.backward()
+        assert features.grad is not None
+        assert not torch.all(features.grad == 0)
+
+    def test_learnable_accessibility_grad(self):
+        """Gradients flow through LearnableAccessibility logits."""
+        access = nn.LearnableAccessibility(4, reflexive=False)
+        A = access()
+        loss = A.sum()
+        loss.backward()
+        assert access.logits.grad is not None
+        assert not torch.all(access.logits.grad == 0)
+
+    def test_necessity_module_end_to_end_grad(self):
+        """Gradients flow end-to-end through Necessity module."""
+        access = nn.LearnableAccessibility(3, reflexive=True)
+        box = nn.Necessity(tau=0.1)
+        prop = torch.tensor([[0.8, 1.0], [0.2, 0.4], [0.6, 0.8]])
+        A = access()
+        result = box(prop, A)
+        loss = result.sum()
+        loss.backward()
+        # Gradients should reach the accessibility logits
+        assert access.logits.grad is not None
+
+    def test_possibility_module_end_to_end_grad(self):
+        """Gradients flow end-to-end through Possibility module."""
+        access = nn.LearnableAccessibility(3, reflexive=True)
+        dia = nn.Possibility(tau=0.1)
+        prop = torch.tensor([[0.8, 1.0], [0.2, 0.4], [0.6, 0.8]])
+        A = access()
+        result = dia(prop, A)
+        loss = result.sum()
+        loss.backward()
+        assert access.logits.grad is not None
 
 
 class TestLosses:

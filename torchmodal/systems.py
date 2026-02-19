@@ -164,12 +164,8 @@ class TemporalOperator(nn.Module):
         Returns:
             ``(num_steps, num_steps)`` binary accessibility matrix.
         """
-        n = self.num_steps
-        # i can access j if j >= i (forward-time)
-        A = torch.zeros(n, n, device=device)
-        for i in range(n):
-            A[i, i:] = 1.0
-        return A
+        # i can access j if j >= i (forward-time) → upper triangular
+        return torch.triu(torch.ones(self.num_steps, self.num_steps, device=device))
 
     def globally(
         self, prop_bounds: Tensor, temporal_accessibility: Tensor
@@ -262,16 +258,13 @@ class MultiAgentKripke(nn.Module):
         """Build temporal accessibility over the full spacetime grid.
 
         State (a, t) can access state (a, t') for t' >= t.
+
+        This is a block-diagonal matrix with one upper-triangular block
+        per agent: ``kron(I_agents, triu(1_T))``.
         """
-        n_s = self.num_states
-        A = torch.zeros(n_s, n_s)
-        for a in range(self.num_agents):
-            for t in range(self.num_steps):
-                src = a * self.num_steps + t
-                for t2 in range(t, self.num_steps):
-                    dst = a * self.num_steps + t2
-                    A[src, dst] = 1.0
-        return A
+        # Each agent has an independent upper-triangular temporal flow
+        triu_T = torch.triu(torch.ones(self.num_steps, self.num_steps))
+        return torch.kron(torch.eye(self.num_agents), triu_T)
 
     def get_epistemic_accessibility(
         self, features: Optional[Tensor] = None
@@ -293,25 +286,19 @@ class MultiAgentKripke(nn.Module):
         Combines temporal accessibility (within-agent time flow)
         with epistemic accessibility (between-agent trust).
 
+        The result is ``kron(A_epi, triu(1_T))``: agent trust scaled
+        by forward-time flow.
+
         Returns:
             ``(num_states, num_states)`` matrix in [0, 1].
         """
         A_epi = self.get_epistemic_accessibility(features)
-        A_full = torch.zeros(
-            self.num_states, self.num_states,
-            device=A_epi.device,
+        # Forward-time upper-triangular mask
+        triu_T = torch.triu(
+            torch.ones(self.num_steps, self.num_steps, device=A_epi.device)
         )
-
-        for a in range(self.num_agents):
-            for b in range(self.num_agents):
-                trust = A_epi[a, b]
-                for t in range(self.num_steps):
-                    for t2 in range(t, self.num_steps):
-                        src = a * self.num_steps + t
-                        dst = b * self.num_steps + t2
-                        A_full[src, dst] = trust * self.A_temporal[src, a * self.num_steps + t2]
-
-        return A_full
+        # Kronecker product: A_full[a*T+t, b*T+t2] = A_epi[a,b] * triu[t,t2]
+        return torch.kron(A_epi, triu_T)
 
     def K(
         self,

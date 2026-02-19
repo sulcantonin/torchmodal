@@ -46,12 +46,17 @@ class Necessity(nn.Module):
         tau: Temperature for soft aggregation. Default 0.1.
         learnable_tau: If ``True``, temperature is learnable. Default False.
 
+    For temperature annealing during training, update the temperature via
+    :meth:`set_tau` rather than assigning to ``.tau`` (buffers/parameters
+    cannot be assigned a plain float).
+
     Example::
 
         >>> box = torchmodal.nn.Necessity(tau=0.1)
         >>> # prop_bounds: (|W|, 2) truth bounds for proposition ϕ
         >>> # A: (|W|, |W|) accessibility matrix
         >>> box_phi = box(prop_bounds, A)
+        >>> box.set_tau(0.05)  # annealing
     """
 
     def __init__(
@@ -76,6 +81,11 @@ class Necessity(nn.Module):
         """
         return F.necessity(prop_bounds, accessibility, tau=self.tau.item())
 
+    def set_tau(self, tau: float) -> None:
+        """Set temperature from a float (e.g. for annealing)."""
+        t = torch.as_tensor(tau, device=self.tau.device, dtype=self.tau.dtype)
+        self.tau.copy_(t)
+
     def extra_repr(self) -> str:
         return f"tau={self.tau.item():.4f}"
 
@@ -99,6 +109,9 @@ class Possibility(nn.Module):
     Args:
         tau: Temperature for soft aggregation. Default 0.1.
         learnable_tau: If ``True``, temperature is learnable. Default False.
+
+    For temperature annealing during training, update the temperature via
+    :meth:`set_tau` rather than assigning to ``.tau``.
 
     Example::
 
@@ -127,6 +140,11 @@ class Possibility(nn.Module):
             ``(|W|, 2)`` or ``(|W|,)`` truth bounds for ♢ϕ.
         """
         return F.possibility(prop_bounds, accessibility, tau=self.tau.item())
+
+    def set_tau(self, tau: float) -> None:
+        """Set temperature from a float (e.g. for annealing)."""
+        t = torch.as_tensor(tau, device=self.tau.device, dtype=self.tau.dtype)
+        self.tau.copy_(t)
 
     def extra_repr(self) -> str:
         return f"tau={self.tau.item():.4f}"

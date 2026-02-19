@@ -92,12 +92,15 @@ def build_ring_accessibility(
     Returns:
         Binary accessibility matrix ``(num_worlds, num_worlds)``.
     """
-    A = torch.zeros(num_worlds, num_worlds, device=device)
-    for i in range(num_worlds):
-        A[i, (i + 1) % num_worlds] = 1.0
-        if bidirectional:
-            A[(i + 1) % num_worlds, i] = 1.0
-        A[i, i] = 1.0  # self-access
+    idx = torch.arange(num_worlds, device=device)
+    next_idx = (idx + 1) % num_worlds
+
+    # Self-access
+    A = torch.eye(num_worlds, device=device)
+    # Forward ring edges: i -> (i+1) mod N
+    A[idx, next_idx] = 1.0
+    if bidirectional:
+        A[next_idx, idx] = 1.0
     return A
 
 
@@ -121,27 +124,23 @@ def build_sudoku_accessibility(
     """
     n = block_size * block_size  # grid size (e.g., 9)
     total = n * n  # total cells (e.g., 81)
-    A = torch.zeros(total, total, device=device)
 
-    for i in range(total):
-        row_i, col_i = divmod(i, n)
-        block_row_i = row_i // block_size
-        block_col_i = col_i // block_size
+    idx = torch.arange(total, device=device)
+    rows = idx // n
+    cols = idx % n
+    block_rows = rows // block_size
+    block_cols = cols // block_size
 
-        for j in range(total):
-            if i == j:
-                continue
-            row_j, col_j = divmod(j, n)
-            block_row_j = row_j // block_size
-            block_col_j = col_j // block_size
+    # Broadcasting: compare all (i, j) pairs simultaneously
+    same_row = rows.unsqueeze(1) == rows.unsqueeze(0)
+    same_col = cols.unsqueeze(1) == cols.unsqueeze(0)
+    same_block = (
+        (block_rows.unsqueeze(1) == block_rows.unsqueeze(0))
+        & (block_cols.unsqueeze(1) == block_cols.unsqueeze(0))
+    )
+    not_self = ~torch.eye(total, dtype=torch.bool, device=device)
 
-            if (
-                row_i == row_j
-                or col_i == col_j
-                or (block_row_i == block_row_j and block_col_i == block_col_j)
-            ):
-                A[i, j] = 1.0
-
+    A = ((same_row | same_col | same_block) & not_self).float()
     return A
 
 
@@ -168,32 +167,21 @@ def build_grid_accessibility(
     total = rows * cols
     A = torch.eye(total, device=device)  # self-access
 
-    for idx in range(total):
-        r, c = divmod(idx, cols)
+    idx = torch.arange(total, device=device)
+    r = idx // cols
+    c = idx % cols
 
-        neighbors = []
-        if r > 0:
-            neighbors.append((r - 1, c))
-        if r < rows - 1:
-            neighbors.append((r + 1, c))
-        if c > 0:
-            neighbors.append((r, c - 1))
-        if c < cols - 1:
-            neighbors.append((r, c + 1))
+    # Cardinal neighbor offsets: (delta_row, delta_col)
+    offsets = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    if connectivity == "8":
+        offsets += [(-1, -1), (-1, 1), (1, -1), (1, 1)]
 
-        if connectivity == "8":
-            if r > 0 and c > 0:
-                neighbors.append((r - 1, c - 1))
-            if r > 0 and c < cols - 1:
-                neighbors.append((r - 1, c + 1))
-            if r < rows - 1 and c > 0:
-                neighbors.append((r + 1, c - 1))
-            if r < rows - 1 and c < cols - 1:
-                neighbors.append((r + 1, c + 1))
-
-        for nr, nc in neighbors:
-            nidx = nr * cols + nc
-            A[idx, nidx] = 1.0
+    for dr, dc in offsets:
+        nr = r + dr
+        nc = c + dc
+        valid = (nr >= 0) & (nr < rows) & (nc >= 0) & (nc < cols)
+        nidx = nr * cols + nc
+        A[idx[valid], nidx[valid]] = 1.0
 
     return A
 

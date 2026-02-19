@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: torchmodal
-Version: 0.1.0
+Version: 0.1.0.4
 Summary: Differentiable Modal Logic for PyTorch — Modal Logical Neural Networks (MLNNs)
 Author-email: Antonin Sulc <asulc@lbl.gov>
 License: MIT
@@ -19,20 +19,24 @@ Classifier: Programming Language :: Python :: 3.12
 Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
 Requires-Python: >=3.9
 Description-Content-Type: text/markdown
+License-File: LICENSE
 Requires-Dist: torch>=2.0
 Provides-Extra: dev
 Requires-Dist: pytest>=7.0; extra == "dev"
 Requires-Dist: pytest-cov; extra == "dev"
 Requires-Dist: mypy; extra == "dev"
 Requires-Dist: ruff; extra == "dev"
+Dynamic: license-file
 
 # torchmodal
+
+![](https://github.com/sulcantonin/torchmodal/blob/main/misc/torchmodal.png)
 
 **Differentiable Modal Logic for PyTorch**
 
 A PyTorch library implementing Modal Logical Neural Networks (MLNNs) — the first framework enabling differentiable reasoning over necessity and possibility by integrating neural networks with Kripke semantics from modal logic.
 
-Based on: *Sulc (2026), "Modal Logical Neural Networks", Proceedings of Machine Learning Research.*
+
 
 ## Installation
 
@@ -136,6 +140,25 @@ crystal_loss = torchmodal.CrystallizationLoss()
 
 ## Examples
 
+All examples are self-contained scripts in [`examples/`](examples/) and can be run directly:
+
+```bash
+python examples/sudoku.py
+```
+
+| Example | Modal Logic | Description |
+|---------|-------------|-------------|
+| [`sudoku.py`](examples/sudoku.py) | □, CSP | 4x4 Sudoku via modal contradiction + crystallization |
+| [`temporal_epistemic.py`](examples/temporal_epistemic.py) | K, G, F, K∘G | Learns epistemic accessibility to resolve contradictions |
+| [`epistemic_trust.py`](examples/epistemic_trust.py) | K_a | Trust learning from promise-keeping behavior |
+| [`doxastic_belief.py`](examples/doxastic_belief.py) | B_a | Belief calibration and hallucination detection |
+| [`temporal_causal.py`](examples/temporal_causal.py) | □(cause → crash) | Root cause analysis in event traces |
+| [`deontic_boundary.py`](examples/deontic_boundary.py) | O, P | Normative boundary learning (spoofing detection) |
+| [`trust_erosion.py`](examples/trust_erosion.py) | Temporal + Deontic | Retroactive lie detection collapses trust |
+| [`dialect_classification.py`](examples/dialect_classification.py) | □, ♢ thresholds | OOD detection — 89% Neutral recall trained only on AmE/BrE |
+| [`axiom_ablation.py`](examples/axiom_ablation.py) | T, 4, B axioms | Effect of reflexivity/transitivity/symmetry on structure learning |
+| [`scalability_ring.py`](examples/scalability_ring.py) | □, ♢ | Ring structure recovery with tau/top-k/learnable ablation |
+
 ### Epistemic Trust Learning (CaSiNo / Diplomacy)
 
 ```python
@@ -229,12 +252,17 @@ tightened = upward_downward(graph, bounds, A, tau=0.1)
 
 ## Citation
 
+If you use torchmodal in your research, please cite:
+
 ```bibtex
-@inproceedings{sulc2026modal,
+@misc{sulc2025modallogicalneuralnetworks,
   title={Modal Logical Neural Networks},
-  author={Sulc, Antonin},
-  booktitle={Proceedings of Machine Learning Research},
-  year={2026}
+  author={Antonin Sulc},
+  year={2025},
+  eprint={2512.03491},
+  archivePrefix={arXiv},
+  primaryClass={cs.LG},
+  url={https://arxiv.org/abs/2512.03491},
 }
 ```
 
