@@ -1,7 +1,3 @@
-# torchmodal
-
-Differentiable Modal Logic.
-
 ![](https://github.com/sulcantonin/torchmodal/blob/main/misc/torchmodal.png)
 
 **Differentiable Modal Logic for PyTorch**
