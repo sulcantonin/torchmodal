@@ -244,3 +244,6 @@ MIT
 
 ## Authors
 [Antonin Sulc](https://sulcantonin.github.io)
+
+## Media
+- Substack https://open.substack.com/pub/sulcantonin/p/the-architecture-of-trust-in-agents?r=2p2sn8&utm_campaign=post&utm_medium=web&showWelcomeOnShare=true
