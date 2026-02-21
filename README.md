@@ -13,7 +13,7 @@ A PyTorch library implementing Modal Logical Neural Networks (MLNNs) — the fir
 ## Installation
 
 ```bash
-pip install -e .
+pip install torchmodal
 ```
 
 ## Quick Start
