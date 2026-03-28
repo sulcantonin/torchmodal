@@ -199,8 +199,9 @@ def necessity(
             (1 - \tilde{A}_{w,w'}) + L_{\phi,w'} \bigr\}_{w' \in W}
 
     .. math::
-        U_{\Box\phi,w} = \text{conv\_pool}_\tau \bigl\{
-            (1 - \tilde{A}_{w,w'}) + U_{\phi,w'} \bigr\}_{w' \in W}
+        U_{\Box\phi,w} = \text{conv\_pool}_\tau \bigl(
+            x_{w'}, \; -x_{w'} \bigr), \quad
+            x_{w'} = (1 - \tilde{A}_{w,w'}) + U_{\phi,w'}
 
     The operator acts as a "weakest link" detector: if a world is highly
     accessible (Ã ≈ 1) but ϕ is false there, the score collapses.
@@ -230,8 +231,8 @@ def necessity(
     # Lower bound: softmin over target worlds (dim=1)
     L_box = softmin(impl_L, tau=tau, dim=1)
 
-    # Upper bound: conv_pool with the implication as both value and logit
-    U_box = conv_pool(impl_U, impl_U, tau=tau, dim=1)
+    # Upper bound: conv_pool with the negated implication as the logit (z = -x)
+    U_box = conv_pool(impl_U, -impl_U, tau=tau, dim=1)
 
     result = torch.stack([L_box, U_box], dim=-1)
     result = torch.clamp(result, 0.0, 1.0)

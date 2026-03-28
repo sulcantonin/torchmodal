@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "torchmodal"
-version = "0.1.0.4"
+version = "0.1.0.6"
 description = "Differentiable Modal Logic for PyTorch — Modal Logical Neural Networks (MLNNs)"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.9"
 authors = [
-    {name = "Antonin Sulc", email = "asulc@lbl.gov"},
+    {name = "Antonin Sulc", email = "sulc.antonin@gmail.com"},
 ]
 keywords = [
     "modal-logic",
@@ -33,6 +33,7 @@ classifiers = [
 ]
 dependencies = [
     "torch>=2.0",
+    "numpy"
 ]
 
 [project.optional-dependencies]
