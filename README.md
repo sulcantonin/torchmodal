@@ -1,7 +1,3 @@
-# torchmodal
-
-Differentiable Modal Logic.
-
 ![](https://github.com/sulcantonin/torchmodal/blob/main/misc/torchmodal.png)
 
 **Differentiable Modal Logic for PyTorch**
@@ -13,7 +9,7 @@ A PyTorch library implementing Modal Logical Neural Networks (MLNNs) — the fir
 ## Installation
 
 ```bash
-pip install -e .
+pip install torchmodal
 ```
 
 ## Quick Start
@@ -244,3 +240,6 @@ MIT
 
 ## Authors
 [Antonin Sulc](https://sulcantonin.github.io)
+
+## Media
+- Substack https://open.substack.com/pub/sulcantonin/p/the-architecture-of-trust-in-agents?r=2p2sn8&utm_campaign=post&utm_medium=web&showWelcomeOnShare=true
