@@ -252,8 +252,9 @@ def possibility(
     Computes truth bounds for ♢ϕ across all worlds. For each world *w*:
 
     .. math::
-        L_{\Diamond\phi,w} = \text{conv\_pool}_\tau \bigl\{
-            \tilde{A}_{w,w'} + L_{\phi,w'} - 1 \bigr\}_{w' \in W}
+        L_{\Diamond\phi,w} = \text{conv\_pool}_\tau \bigl(
+            x_{w'}, \; x_{w'} \bigr), \quad
+            x_{w'} = \tilde{A}_{w,w'} + L_{\phi,w'} - 1
 
     .. math::
         U_{\Diamond\phi,w} = \text{softmax}_\tau \bigl\{
@@ -281,7 +282,7 @@ def possibility(
     conj_L = accessibility + L_phi.unsqueeze(0) - 1.0
     conj_U = accessibility + U_phi.unsqueeze(0) - 1.0
 
-    # Lower bound: conv_pool (sound lower bound)
+    # Lower bound: conv_pool with the conjunction as both value and logit (z = x)
     L_dia = conv_pool(conj_L, conj_L, tau=tau, dim=1)
 
     # Upper bound: softmax (weighted existential)
