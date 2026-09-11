@@ -6,6 +6,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-09-11
+
 ### Fixed
 
 - **Top-k masking of the accessibility matrix was unsound and vacuous at scale**

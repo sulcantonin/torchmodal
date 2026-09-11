@@ -57,7 +57,7 @@ Quick Start::
 Reference: Sulc (2026), "Modal Logical Neural Networks", NeuS.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 # Core functional API
 from torchmodal import functional, nn
