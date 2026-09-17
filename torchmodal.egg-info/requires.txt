@@ -1,8 +1,0 @@
-torch>=2.0
-numpy<3,>=1.24
-
-[dev]
-pytest>=7.0
-pytest-cov
-mypy
-ruff
