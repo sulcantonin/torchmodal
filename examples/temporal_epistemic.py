@@ -27,8 +27,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import torchmodal
 from torchmodal import functional as F
 
+SEED = 42
+
 
 def main():
+    torch.manual_seed(SEED)
+    np.random.seed(SEED)
     print("=" * 60)
     print("  MLNN Demo: Epistemic, Temporal, and Composite Operators")
     print("=" * 60)

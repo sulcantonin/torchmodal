@@ -115,6 +115,7 @@ class TemporalCausalMLNN(nn.Module):
 def generate_traces(num_traces=500, seq_len=10, seed=42):
     """Generate synthetic event traces with known causal structure."""
     np.random.seed(seed)
+    torch.manual_seed(seed)
     traces = []
 
     for _ in range(num_traces):
