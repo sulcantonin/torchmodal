@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "torchmodal"
-version = "0.3.0"
+version = "0.4.0"
 description = "Differentiable modal logic for PyTorch: sound interval bounds and a learnable Kripke accessibility relation (Modal Logic Neural Networks)"
 readme = "README.md"
 license = "MIT"

@@ -45,6 +45,10 @@ __all__ = [
     "possibility",
     "until",
     "until_graph",
+    # Dynamic epistemic logic (model update)
+    "announce",
+    "necessity_after",
+    "group_announce",
     # Precision control
     "auto_tau",
     # Diagnostics
@@ -1164,3 +1168,178 @@ def contradiction(bounds: Tensor, upper: Tensor | None = None) -> Tensor:
         L = bounds
         U = upper
     return torch.relu(L - U).sum()
+
+
+# ---------------------------------------------------------------------------
+# Dynamic epistemic logic: model-update operators
+# ---------------------------------------------------------------------------
+
+
+def announce(
+    accessibility: Tensor,
+    psi_bounds: Tensor,
+    trust: Tensor | float = 1.0,
+    tnorm: str = "product",
+) -> tuple[Tensor, Tensor]:
+    r"""Graded, trust-weighted public announcement of :math:`\psi`.
+
+    A public announcement is the dynamic-epistemic-logic update that *edits the
+    model*: crisp public announcement logic relativises the relation to the
+    worlds where :math:`\psi` holds. This is its graded, interval-valued
+    counterpart, returning the two relations that bracket it:
+
+    .. math::
+        A^{lo}_{w,w'} &= A_{w,w'} \otimes (1 - t \cdot (1 - U_{\psi,w'})) \\
+        A^{hi}_{w,w'} &= A_{w,w'} \otimes (1 - t \cdot (1 - L_{\psi,w'}))
+
+    :math:`A^{lo}` cuts only the worlds that are *certainly* :math:`\neg\psi`,
+    so it is the **largest** surviving relation; :math:`A^{hi}` cuts every world
+    not *certainly* :math:`\psi`, so it is the **smallest**.
+
+    **What it bounds.** Since :math:`L_\psi \le V_\psi \le U_\psi`, the crisp
+    relativised relation is sandwiched pointwise:
+
+    .. math:: A^{hi} \le A^{crisp} \le A^{lo}.
+
+    That sandwich is what makes :func:`necessity_after` interval-sound; it is
+    verified over random graded inputs in the test-suite. With ``trust=1`` and a
+    crisp :math:`\psi` the pair collapses onto crisp PAL relativisation, and
+    ``trust=0`` returns the relation unchanged.
+
+    .. warning::
+        Worlds cut by the announcement become **dead ends**, where
+        :math:`\square` is vacuously true, whereas crisp PAL *deletes* them from
+        the model. The two therefore disagree at removed worlds by construction
+        — a cut world reports :math:`K \approx [1, 1]`. Restrict any comparison
+        against a crisp checker to the surviving worlds, and check that the
+        actual world survives.
+
+    Args:
+        accessibility: ``(|W|, |W|)`` or ``(|G|, |W|, |W|)`` relation in [0, 1].
+        psi_bounds: ``(|W|, 2)`` or ``(|W|,)`` bounds of the announced formula.
+        trust: How far the announcement cuts, in [0, 1]. Scalar, ``(|G|,)`` or
+            ``(|G|, |W|)`` for recipient-specific trust in the sender.
+            Default 1.0 (a fully trusted announcement).
+        tnorm: Conjunction combining the relation with the survival factor —
+            ``"product"`` (default), ``"godel"`` (min) or ``"luk"``.
+
+    Returns:
+        ``(A_lo, A_hi)``, each the shape of ``accessibility``.
+
+    Example:
+        >>> import torch
+        >>> from torchmodal.functional import announce
+        >>> A = torch.ones(3, 3)
+        >>> psi = torch.tensor([[1.0, 1.0], [0.0, 0.0], [1.0, 1.0]])
+        >>> lo, hi = announce(A, psi)
+        >>> bool((lo[:, 1] == 0).all() and (hi[:, 1] == 0).all())
+        True
+    """
+    if psi_bounds.dim() == 1:
+        psi_bounds = torch.stack([psi_bounds, psi_bounds], dim=-1)
+    L_psi, U_psi = psi_bounds[..., 0], psi_bounds[..., 1]
+
+    t = torch.as_tensor(trust, dtype=accessibility.dtype, device=accessibility.device)
+    while t.dim() < accessibility.dim() - 1:
+        t = t.unsqueeze(-1)
+    t = t.unsqueeze(-1) if t.dim() == accessibility.dim() - 1 else t
+
+    keep_lo = 1.0 - t * (1.0 - U_psi)
+    keep_hi = 1.0 - t * (1.0 - L_psi)
+
+    def _combine(A: Tensor, keep: Tensor) -> Tensor:
+        keep = keep.expand_as(A) if keep.dim() == A.dim() else keep
+        if tnorm == "product":
+            return A * keep
+        if tnorm == "godel":
+            return torch.minimum(A, keep.expand_as(A))
+        if tnorm == "luk":
+            return torch.clamp(A + keep.expand_as(A) - 1.0, min=0.0)
+        raise ValueError(f"tnorm must be 'product', 'godel' or 'luk', got {tnorm!r}")
+
+    return _combine(accessibility, keep_lo), _combine(accessibility, keep_hi)
+
+
+def necessity_after(
+    prop_bounds: Tensor,
+    accessibility: Tensor,
+    psi_bounds: Tensor,
+    trust: Tensor | float = 1.0,
+    tau: float = 0.1,
+    tnorm: str = "product",
+    top_k: int | None = None,
+) -> Tensor:
+    r"""Knowledge after an announcement: :math:`[\psi] \square \varphi`.
+
+    The lower endpoint is taken through :math:`A^{lo}` and the upper through
+    :math:`A^{hi}` (see :func:`announce`). The direction is not arbitrary: a
+    *larger* relation constrains :math:`\square` more, so the largest surviving
+    relation gives the lower bound.
+
+    **What it bounds.** Sound in both directions —
+    :math:`L \le \square\varphi^{crisp} \le U` on surviving worlds — reducing
+    to crisp public-announcement logic as ``tau -> 0`` with ``trust=1``.
+
+    The proof route matters, because the obvious one is wrong: it is *not*
+    monotonicity of the box neuron, whose upper endpoint uses
+    :func:`conv_pool` and is not monotone. It is monotonicity of the **hard**
+    ``min`` under the pointwise sandwich of :func:`announce`, composed with the
+    one-sided enclosure of the aggregators.
+
+    Args:
+        prop_bounds: ``(|W|, 2)`` or ``(|W|,)`` bounds for φ.
+        accessibility: ``(|W|, |W|)`` relation in [0, 1].
+        psi_bounds: ``(|W|, 2)`` or ``(|W|,)`` bounds for the announced ψ.
+        trust: See :func:`announce`. Default 1.0.
+        tau: Temperature. Default 0.1.
+        tnorm: See :func:`announce`. Default ``"product"``.
+        top_k: Passed through to :func:`necessity`.
+
+    Returns:
+        ``(|W|, 2)`` bounds for φ known after the announcement.
+    """
+    A_lo, A_hi = announce(accessibility, psi_bounds, trust=trust, tnorm=tnorm)
+    lower = necessity(prop_bounds, A_lo, tau=tau, top_k=top_k)[..., 0]
+    upper = necessity(prop_bounds, A_hi, tau=tau, top_k=top_k)[..., 1]
+    return torch.stack([lower, upper], dim=-1)
+
+
+def group_announce(
+    accessibility: Tensor,
+    psi_bounds: Tensor,
+    recipients: Tensor,
+    trust: Tensor | float = 1.0,
+    tnorm: str = "product",
+) -> tuple[Tensor, Tensor]:
+    r"""Action-model update for a message delivered to part of the group.
+
+    A public announcement reaches everyone; a message on a private or group
+    channel does not. Recipients update their relation by :func:`announce`,
+    non-recipients keep theirs unchanged — the graded counterpart of a
+    product update with two events, "heard" and "did not hear".
+
+    **Why this is not a public announcement.** Common knowledge is created only
+    by an event public to the whole group. After a group announcement the
+    recipients' knowledge rises while the others' does not, so the group's
+    :math:`C_G` need not move at all — which is exactly what makes
+    who-hears-what a real design question rather than a formality.
+
+    Args:
+        accessibility: ``(|G|, |W|, |W|)`` — one relation per agent.
+        psi_bounds: ``(|W|, 2)`` or ``(|W|,)`` bounds of the announced formula.
+        recipients: ``(|G|,)`` mask in [0, 1]; 1 means the agent received the
+            message. Fractional values interpolate (a partially attentive
+            listener) by scaling that agent's effective trust.
+        trust: See :func:`announce`. Default 1.0.
+        tnorm: See :func:`announce`. Default ``"product"``.
+
+    Returns:
+        ``(A_lo, A_hi)``, each ``(|G|, |W|, |W|)``.
+    """
+    if accessibility.dim() != 3:
+        raise ValueError(
+            "group_announce expects (|G|, |W|, |W|); use announce() for one relation"
+        )
+    t = torch.as_tensor(trust, dtype=accessibility.dtype, device=accessibility.device)
+    effective = recipients.to(accessibility.dtype) * t
+    return announce(accessibility, psi_bounds, trust=effective, tnorm=tnorm)

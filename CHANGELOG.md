@@ -6,6 +6,66 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-09-18
+
+The group-knowledge layer and dynamic epistemic logic. Additive: the 180-entry
+API fingerprint is unchanged apart from the `__all__` lists and `__version__`.
+
+### Added
+
+- **`torchmodal.epistemic`** — the group operators, completing what
+  `systems.EpistemicOperator` started with `K_a`: `everybody_knows`,
+  `mutual_knowledge`, `distributed_knowledge`, `common_knowledge`,
+  `pooled_accessibility` and `and_bounds`.
+
+  The group fold defaults to **Gödel**, not Łukasiewicz. Measured with every
+  agent at `K_a = [0.1, 0.2]`, the Łukasiewicz fold gives `[0.000, 0.200]` at
+  **every** group size from two upward — dead on arrival for any realistic
+  bound — while Gödel holds `0.100`. Same reasoning that made `until_graph`
+  use Gödel: idempotence is what survives iteration.
+
+- **Frame audit** — `frame_audit`, `shuffled_null`, `AxiomReport`. Reports
+  satisfaction *with* coverage and a shape-matched null, because a bare axiom
+  score is not evidence of structure: Łukasiewicz implication makes any triple
+  with `A_uv + A_vw <= 1` vacuously satisfied, so 1.00 at low coverage means
+  nothing. The corrected protocol is the default; the bare score is not
+  reachable by accident.
+
+- **Dynamic epistemic logic** — `functional.announce`, `necessity_after` and
+  `group_announce`: graded public and group announcement as a relativisation
+  of the relation, with the `A_hi <= A_crisp <= A_lo` sandwich.
+
+### Changed
+
+- **`common_knowledge` now defaults to `tau_decay=0.5`.** It previously
+  defaulted to `None` and shipped unusable: the lower bound was **exactly
+  0.0000 with exactly zero gradient for every input tried**, so the operator
+  could not be trained against or reported.
+
+  The cause is the **greatest-fixpoint cliff**, now pinned in
+  `tests/test_traps.py`. Iterating a gfp down from the top through a smooth
+  diamond loses a little each sweep, and below roughly 0.999 edge weight there
+  is no non-zero fixed point to land on. Measured on a 6-cycle at `tau=0.1`
+  with phi true everywhere, `EG` falls **0.955 -> 0.754 -> 0.000** as the
+  weight goes **1.0 -> 0.999 -> 0.99** — a 1% softening takes the value from
+  0.95 to nothing, while the crisp answer is 1 throughout.
+
+  The collapse is **not** a t-norm artefact: Gödel, product and Łukasiewicz
+  all do it, because the lossy step is the modal one, not the conjunction.
+  Swapping the fold cannot help; an annealed temperature can, because it makes
+  the per-sweep loss summable. Hence the new default, matching `until_graph`.
+
+  Verified sound against a crisp reference checker on 8 frames (complete,
+  two-clique, ring, with phi falsified at a world): the lower bound never
+  exceeds the crisp value. `tau_decay=None` still reproduces the old behaviour
+  and a regression test holds it in place.
+
+- Even at edge weight 1.0 the gfp iteration is **still creeping at a 200-sweep
+  cap**, returning 0.955 rather than the true 1.0 — a strict tolerance does not
+  terminate. Any future gfp operator must report its iteration count rather
+  than imply convergence.
+
+
 ## [0.3.0] — 2026-09-18
 
 > **Additive.** No existing public call returns a different value: a 180-entry
