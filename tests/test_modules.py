@@ -321,3 +321,31 @@ class TestLosses:
         loss = sem_loss(probs, constraint_type="mutual_exclusive")
         assert loss.dim() == 0  # scalar
         assert loss.item() > 0.0
+
+    def test_axiom_regularization_seriality(self):
+        """Axiom D seriality penalty: zero on serial frame, positive on dead end, and optimizable."""
+        reg = torchmodal.AxiomRegularization(seriality=1.0)
+
+        # Serial frame: every world has at least one successor (a 1 in each row)
+        A_serial = torch.eye(3)
+        loss_serial = reg(A_serial)
+        assert loss_serial.item() < 1e-4
+
+        # Dead-end frame: world 2 has no successors (row of zeros)
+        A_dead = torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]])
+        loss_dead = reg(A_dead)
+        assert loss_dead.item() > 0.05
+
+        # Optimization test: Adam steps on penalty alone drive dead-end row to have a successor
+        A_param = torch.nn.Parameter(A_dead.clone())
+        optimizer = torch.optim.Adam([A_param], lr=0.05)
+        for _ in range(300):
+            optimizer.zero_grad()
+            step_loss = reg(A_param)
+            step_loss.backward()
+            optimizer.step()
+
+        # Check that world 2 now has at least one successor
+        assert A_param[2].max().item() > 0.8
+        assert reg(A_param).item() < 1e-3
+
