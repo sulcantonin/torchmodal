@@ -241,6 +241,11 @@ class AxiomRegularization(nn.Module):
       System S4: □ϕ → □□ϕ (positive introspection).
     - **Axiom B** (Symmetry): ``A ≈ Aᵀ``.
       System B: ϕ → □♢ϕ (Brouwerian axiom).
+    - **Axiom D** (Seriality): every world has a successor,
+      ``max_j A[i,j] = 1``.
+      System D: □ϕ → ♢ϕ (consistency — what is necessary is possible).
+    - **Axiom 5** (Euclidean): ``A[i,j] ∧ A[i,k] → A[j,k]``.
+      System S5: ♢ϕ → □♢ϕ (negative introspection).
 
     These can be combined to enforce specific modal logic systems:
     - **System T** = K + Reflexivity
@@ -248,10 +253,34 @@ class AxiomRegularization(nn.Module):
     - **System S5** = K + Reflexivity + Transitivity + Symmetry
     - **System B** = K + Reflexivity + Symmetry
 
+    .. warning::
+       **Seriality and the identity relation.** The obvious reading of "every
+       world has a successor" is ``max_j A[i,j] = 1``, and the identity matrix
+       satisfies it perfectly while relating nothing to anything else. Since
+       :class:`~torchmodal.nn.LearnableAccessibility` is reflexive by default,
+       the identity is exactly where a fit can comfortably settle — so a user
+       who asks for "no dead ends" can get a relation that coordinates
+       nothing. Pass ``serial_hollow=True`` (the default) to require a
+       successor *other than the world itself*, which is what people mean.
+
+    .. note::
+       The seriality penalty uses a **hard** ``max``, not
+       :func:`~torchmodal.functional.smooth_max`. The smooth surrogate is an
+       upper bound on the max, so ``relu(1 - smooth_max(...))`` *understates*
+       the violation and scores a non-serial relation as satisfied unless it
+       is debiased by ``tau * log n``. Using the exact max avoids the trap;
+       the gradient reaches the maximal entry of each row, which is enough to
+       drive it toward 1.
+
     Args:
         reflexivity: Weight for reflexivity penalty. Default 0.0.
         transitivity: Weight for transitivity penalty. Default 0.0.
         symmetry: Weight for symmetry penalty. Default 0.0.
+        seriality: Weight for the Axiom D penalty. Default 0.0.
+        euclidean: Weight for the Axiom 5 penalty. Default 0.0.
+        serial_hollow: When ``True`` (default), seriality ignores self-loops
+            so the identity does not satisfy it. Only meaningful when
+            ``seriality > 0``.
 
     Example::
 
@@ -266,11 +295,17 @@ class AxiomRegularization(nn.Module):
         reflexivity: float = 0.0,
         transitivity: float = 0.0,
         symmetry: float = 0.0,
+        seriality: float = 0.0,
+        euclidean: float = 0.0,
+        serial_hollow: bool = True,
     ) -> None:
         super().__init__()
         self.reflexivity = reflexivity
         self.transitivity = transitivity
         self.symmetry = symmetry
+        self.seriality = seriality
+        self.euclidean = euclidean
+        self.serial_hollow = serial_hollow
 
     def forward(self, accessibility: Tensor) -> Tensor:
         """
@@ -300,13 +335,45 @@ class AxiomRegularization(nn.Module):
             diff = accessibility - accessibility.t()
             loss = loss + self.symmetry * torch.mean(diff ** 2)
 
+        if self.seriality > 0:
+            # Axiom D: every row needs at least one successor.
+            A_ser = accessibility
+            if self.serial_hollow:
+                # Mask the diagonal so a self-loop cannot satisfy the axiom —
+                # otherwise the identity scores perfectly while relating
+                # nothing to anything else.
+                eye = torch.eye(
+                    accessibility.shape[-1], device=accessibility.device
+                )
+                A_ser = accessibility * (1.0 - eye)
+            best = A_ser.max(dim=-1).values
+            loss = loss + self.seriality * torch.mean(
+                torch.relu(1.0 - best) ** 2
+            )
+
+        if self.euclidean > 0:
+            # Axiom 5: A[i,j] and A[i,k] imply A[j,k].
+            # The antecedent uses Godel (min) rather than Lukasiewicz: the
+            # Lukasiewicz conjunction drives the antecedent to 0 whenever
+            # A[i,j] + A[i,k] <= 1, which makes the constraint vacuously
+            # satisfied on exactly the sparse relations where it should bite.
+            ante = torch.minimum(
+                accessibility.unsqueeze(-1), accessibility.unsqueeze(-2)
+            )  # (i, j, k) = min(A[i,j], A[i,k])
+            cons = accessibility.unsqueeze(-3)  # (i, j, k) -> A[j,k]
+            loss = loss + self.euclidean * torch.mean(
+                torch.relu(ante - cons) ** 2
+            )
+
         return loss
 
     def extra_repr(self) -> str:
         return (
             f"reflexivity={self.reflexivity}, "
             f"transitivity={self.transitivity}, "
-            f"symmetry={self.symmetry}"
+            f"symmetry={self.symmetry}, "
+            f"seriality={self.seriality}, "
+            f"euclidean={self.euclidean}"
         )
 
 

@@ -28,4 +28,13 @@ test in [`tests/test_traps.py`](https://github.com/sulcantonin/torchmodal/blob/m
 
 - **`until_graph(quantifier="box")` is sound only on a serial frame.** A dead end makes `□U`
   vacuously true, so a path that simply stops satisfies the formula. Prefer the default
-  `"diamond"` (EU) unless every world is known to have a successor.
+  `"diamond"` (EU) unless every world is known to have a successor — or enforce seriality
+  with `AxiomRegularization(seriality=...)`.
+
+- **Only two of the four bound endpoints are monotone in `A`.** `necessity.L` and
+  `possibility.U` are; the two `conv_pool` endpoints are not. A monotonicity argument is
+  available only for the first two — see `torchmodal.diagnostics.MONOTONICITY`.
+
+- **`until` and `until_graph` are not batched.** The modal operators are; these two still
+  take one model at a time.
+
