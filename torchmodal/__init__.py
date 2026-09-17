@@ -63,7 +63,7 @@ https://openreview.net/pdf?id=uLOdtBm0Cx
 __version__ = "0.3.0"
 
 # Core functional API
-from torchmodal import diagnostics, functional, nn
+from torchmodal import diagnostics, epistemic, functional, nn
 from torchmodal.diagnostics import (
     MONOTONICITY,
     GradientHealthError,
@@ -109,6 +109,7 @@ __all__ = [
     "__version__",
     # Subpackages
     "functional",
+    "epistemic",
     "nn",
     "diagnostics",
     # Diagnostics
