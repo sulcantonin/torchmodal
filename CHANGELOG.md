@@ -6,6 +6,95 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-09-18
+
+> **Additive.** No existing public call returns a different value: a 180-entry
+> bit-exact fingerprint of the public API is unchanged apart from the two
+> `__all__` lists gaining the new names. The one exception is a bug fix, noted
+> under *Fixed* — `box_width_entropy` previously returned `NaN` for small
+> `tau`, and now returns the correct value.
+
+### Added
+
+- **`functional.auto_tau`** — the inverse of the bracket. Every other entry
+  point asks for a temperature and tells you afterwards how wide the resulting
+  interval is; this asks for the width you can tolerate and supplies the
+  temperature. The returned `tau` is always *safe*: the realised width never
+  exceeds the target.
+
+  Two modes. The **closed form** (`prop_bounds=None`) uses the frame-only
+  bound `tau = eps / log n`, valid for any proposition and therefore the one to
+  use during training, where the bounds change every step. The **exact** mode
+  bisects on the true `box_width_entropy` for given bounds and returns the
+  largest `tau` meeting the target — measured 2.4x to 3.7x larger than the
+  closed form on a random 12-world frame, which means correspondingly
+  better-conditioned gradients.
+
+  This closes a gap the library had been carrying: `box_width_entropy` shipped
+  in 0.2.2 and was called **zero times** anywhere in the library. The width was
+  computable and entirely unconsumed.
+
+- **`precision=` on `necessity` and `possibility`** — state a bracket width
+  instead of a temperature. `precision` overrides `tau` when both are given;
+  omitting it is silent and unchanged.
+
+- **Batched evaluation.** `necessity`, `possibility` and `box_width_entropy`
+  now accept any number of leading batch dimensions — `(B, |W|, 2)` bounds
+  against `(B, |W|, |W|)` relations — and results are **bit-identical** to
+  looping over the batch. Training over a dataset of Kripke models no longer
+  requires a Python loop. Point-valued input is recognised by rank *relative to
+  the relation*, which stays unambiguous when `|W| == 2`, where a rule based on
+  the trailing extent would guess wrong. `until` and `until_graph` remain
+  single-model.
+
+- **`diagnostics.vacuity_report`** — distinguishes a term that is satisfied
+  because it is *true* from one satisfied because the relation is *empty*.
+  Every box-built quantity is maximal on the empty relation — an agent that
+  sees nothing vacuously knows everything — so a specification written only in
+  box has a global optimum that satisfies every axiom and constrains nothing,
+  and an L1 sparsity penalty pushes *toward* it rather than against it. This is
+  the tool the `contradiction` docstring asks for when it warns that
+  `L_contra` "must not be the sole guard against a degenerate optimum".
+
+- **`diagnostics.MONOTONICITY` and `monotone_in_accessibility`** — which bound
+  endpoints are monotone in `A`. Only the two log-sum-exp aggregators are
+  (`necessity.L`, `possibility.U`); the two `conv_pool` endpoints are not.
+  Which endpoint you use determines whether a monotonicity argument is
+  available, and the table is now checked by an empirical perturbation test
+  rather than asserted.
+
+- **Axioms D (seriality) and 5 (Euclidean)** in `AxiomRegularization`, which
+  previously covered only T, 4 and B. D matters because it is the precondition
+  for `until_graph(quantifier="box")` being sound — the library documented the
+  requirement in 0.2.2 without offering any way to satisfy it.
+
+  Seriality defaults to `serial_hollow=True`. The naive reading
+  (`max_j A[i,j] = 1`) is satisfied perfectly by the **identity matrix**, which
+  has no dead ends and relates nothing to anything else — and since
+  `LearnableAccessibility` is reflexive by default, the identity is exactly
+  where a fit can settle. Measured: the identity scores 0.0000 under the naive
+  reading and 1.0000 under the hollow one. The penalty also uses a hard `max`
+  rather than `smooth_max`, which as an upper bound would understate the
+  violation unless debiased by `tau * log n`. Axiom 5's antecedent uses Gödel
+  `min` rather than Łukasiewicz, which would collapse to 0 — and so be
+  vacuously satisfied — on exactly the sparse relations the axiom should catch.
+
+- 58 new tests (262 from 204), including the batching/loop equivalence, the
+  `auto_tau` safety guarantee in both modes, and the NaN regression below.
+
+### Fixed
+
+- **`box_width_entropy` returned `NaN` for small `tau` in float32.** The guard
+  `weights.clamp_min(1e-300)` is itself flushed to zero in float32, whose
+  smallest normal is about 1e-38, so an underflowed weight produced
+  `0 * log(0)`. Entropy is now computed from `log_softmax` with the zero-weight
+  terms masked, which is exact and dtype-agnostic. At `tau = 0.008` on a random
+  12-world frame the function returned `nan` and now returns `0.0036`; the
+  identity against `conv_pool - smooth_min` still holds to 4.4e-16 in float64.
+
+  This also made `auto_tau`'s bisection unusable at tight targets, so the two
+  land together.
+
 ## [0.2.2] — 2026-09-17
 
 > **No existing public call returns a different value.** Every change below is

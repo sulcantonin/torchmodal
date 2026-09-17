@@ -85,6 +85,36 @@ is bounded by `τ·log n`, and it tells you three things at once: how loose this
 many levels you can nest before the bound floors (`k* = ⌈1/(τ·H̄)⌉`), and how large a
 contradiction can hide from `L_contra` without producing any gradient.
 
+### Ask for a precision, not a temperature
+
+Because the width is exactly computable, it can be inverted. Rather than guessing `τ` and
+finding out afterwards how wrong the answer might be, state what you can tolerate:
+
+```python
+box = F.necessity(bounds, A, precision=0.05)   # bracket at most 0.05 wide — guaranteed
+tau = F.auto_tau(A, target_width=0.05)         # or just get the temperature
+```
+
+The returned temperature is always *safe* — the realised width never exceeds the target.
+Pass `prop_bounds=` to `auto_tau` for the exact mode, which bisects on the true width and
+returns the largest `τ` that still meets it: 2.4×–3.7× larger than the closed form on a
+random 12-world frame, and a larger `τ` means better-conditioned gradients.
+
+### Is it satisfied, or just vacuous?
+
+Every `□`-built quantity is **maximal on the empty relation** — an agent that sees nothing
+vacuously knows everything. So a specification written only in `□` has a global optimum
+that satisfies every axiom and coordinates nothing, and an `ℓ₁` sparsity penalty pushes
+*toward* that optimum rather than against it.
+
+```python
+from torchmodal.diagnostics import vacuity_report
+
+vacuity_report(lambda A: F.necessity(phi, A)[:, 0], A)
+# {'observed_value': 0.10, 'vacuous_value': 0.82, 'vacuous': True,
+#  'direction': 'maximal_when_empty', ...}
+```
+
 ### Find the silently-dead term in your neurosymbolic loss
 
 The characteristic failure of a differentiable logic is not an exception — it is a term
@@ -104,6 +134,12 @@ report["issues"]    # ["term 'output.L' is dead: pinned at the floor (0.0)
 neuron is `L = 0` *with* `U = 1`, which neither column reveals on its own — and attributes
 gradients per endpoint. `assert_has_signal(...)` is the raising variant for tests. No other
 neurosymbolic library ships one.
+
+### Batched
+
+`necessity`, `possibility` and `box_width_entropy` take any number of leading batch
+dimensions — `(B, |W|, 2)` bounds against `(B, |W|, |W|)` relations — so training over a
+dataset of Kripke models needs no Python loop. Results are bit-identical to looping.
 
 ## Installation
 
@@ -419,7 +455,15 @@ test in [`tests/test_traps.py`](tests/test_traps.py) so it cannot silently chang
 
 - **`until_graph(quantifier="box")` is sound only on a serial frame.** A dead end makes `□U`
   vacuously true, so a path that simply stops satisfies the formula. Prefer the default
-  `"diamond"` (EU) unless every world is known to have a successor.
+  `"diamond"` (EU) unless every world is known to have a successor — or enforce seriality
+  with `AxiomRegularization(seriality=...)`.
+
+- **Only two of the four bound endpoints are monotone in `A`.** `necessity.L` and
+  `possibility.U` are; the two `conv_pool` endpoints are not. A monotonicity argument is
+  available only for the first two — see `torchmodal.diagnostics.MONOTONICITY`.
+
+- **`until` and `until_graph` are not batched.** The modal operators are; these two still
+  take one model at a time.
 
 ## Citation
 

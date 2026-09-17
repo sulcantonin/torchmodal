@@ -60,6 +60,9 @@ __all__ = [
     "gradient_health",
     "assert_has_signal",
     "GradientHealthError",
+    "vacuity_report",
+    "monotone_in_accessibility",
+    "MONOTONICITY",
 ]
 
 
@@ -482,3 +485,157 @@ def assert_has_signal(
             f"{prefix}term carries no usable training signal:\n  - {detail}"
         )
     return report
+
+
+# ---------------------------------------------------------------------------
+# Vacuity: is a term satisfied because it is TRUE, or because it is EMPTY?
+# ---------------------------------------------------------------------------
+
+
+def vacuity_report(
+    term_fn: Callable[[Tensor], Tensor],
+    accessibility: Tensor,
+    *,
+    margin_atol: float = 1e-4,
+) -> Dict[str, Any]:
+    r"""Distinguish a term that is *satisfied* from one that is *vacuous*.
+
+    Every :math:`\square`-built quantity is **maximal on the empty relation**:
+    an agent that can see nothing vacuously knows everything, because
+    ``L_□ = smooth_min((1 - A) + L_φ)`` has no small terms left to find. A
+    specification written only in :math:`\square` therefore has a global
+    optimum that satisfies every axiom and constrains nothing, and — the part
+    that catches people — an :math:`\ell_1` sparsity penalty pushes *toward*
+    that optimum rather than against it.
+
+    This evaluates ``term_fn`` twice, on the supplied relation and on the
+    all-zero relation of the same shape, and reports the margin between them.
+    A term whose value is no better than its own vacuous value is carrying no
+    information about the relation, however satisfied it looks.
+
+    This is the tool the :func:`torchmodal.functional.contradiction` docstring
+    asks for when it warns that ``L_contra`` "must not be the sole guard
+    against a degenerate optimum".
+
+    Args:
+        term_fn: Callable taking an accessibility matrix and returning a
+            tensor — a bound, a residual, or a scalar score.
+        accessibility: The relation to test, ``(..., |W|, |W|)``.
+        margin_atol: A margin at or below this counts as vacuous. Default
+            1e-4.
+
+    Returns:
+        A dict with ``observed_value`` and ``vacuous_value`` (means over the
+        returned tensor), ``margin_over_vacuous`` (observed minus vacuous),
+        ``vacuous`` (``True`` when the margin is not positive beyond
+        ``margin_atol``), and ``direction`` — ``"maximal_when_empty"`` for a
+        box-like term, ``"maximal_when_full"`` for a diamond-like one — which
+        is the signal for whether a specification is one-sided.
+
+    Example:
+        >>> import torch
+        >>> from torchmodal import functional as F
+        >>> from torchmodal.diagnostics import vacuity_report
+        >>> A = torch.rand(6, 6)
+        >>> phi = torch.zeros(6, 2)          # unsupported everywhere
+        >>> r = vacuity_report(lambda a: F.necessity(phi, a)[:, 0], A)
+        >>> r["vacuous"]                      # box on an unsupported prop
+        True
+    """
+    with torch.no_grad():
+        empty = torch.zeros_like(accessibility)
+        full = torch.ones_like(accessibility)
+        observed = term_fn(accessibility)
+        vacuous = term_fn(empty)
+        saturated = term_fn(full)
+
+        obs = float(observed.mean())
+        vac = float(vacuous.mean())
+        sat = float(saturated.mean())
+
+    margin = obs - vac
+    return {
+        "observed_value": obs,
+        "vacuous_value": vac,
+        "saturated_value": sat,
+        "margin_over_vacuous": margin,
+        "vacuous": bool(margin <= margin_atol),
+        "direction": (
+            "maximal_when_empty" if vac >= sat else "maximal_when_full"
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Monotonicity of each bound endpoint in the accessibility relation
+# ---------------------------------------------------------------------------
+
+#: Which bound endpoints are monotone in ``A``, and which are not.
+#:
+#: Only the two log-sum-exp aggregators are monotone. The two
+#: :func:`~torchmodal.functional.conv_pool` endpoints are not, because
+#: ``conv_pool`` is not monotone in its own argument — raising a term already
+#: far above the pooled value *lowers* the result (see that function's
+#: docstring for the derivative). Measured over 400 random perturbations per
+#: endpoint: ``L_box`` 0 violations, ``U_dia`` 0, ``U_box`` 247, ``L_dia``
+#: 252.
+#:
+#: This matters when constructing a soundness argument: "the bound is monotone
+#: in ``A``, therefore ..." is available only for the two endpoints below
+#: marked ``True``.
+MONOTONICITY: Dict[str, Dict[str, Any]] = {
+    "necessity.L": {
+        "aggregator": "smooth_min",
+        "monotone": True,
+        "note": "non-decreasing in A: more access can only lower the min's "
+                "terms via (1 - A), so the bound tightens predictably",
+    },
+    "necessity.U": {
+        "aggregator": "conv_pool",
+        "monotone": False,
+        "note": "conv_pool is not monotone in its argument",
+    },
+    "possibility.L": {
+        "aggregator": "conv_pool",
+        "monotone": False,
+        "note": "conv_pool is not monotone in its argument",
+    },
+    "possibility.U": {
+        "aggregator": "smooth_max",
+        "monotone": True,
+        "note": "non-decreasing in A",
+    },
+}
+
+
+def monotone_in_accessibility(operator: str, endpoint: str) -> bool:
+    """Is this bound endpoint monotone in the accessibility relation?
+
+    Args:
+        operator: ``"necessity"`` / ``"box"``, or ``"possibility"`` /
+            ``"diamond"``.
+        endpoint: ``"L"`` or ``"U"`` (case-insensitive).
+
+    Returns:
+        ``True`` when the endpoint is monotone in ``A``, so a monotonicity
+        argument is available for it.
+
+    Raises:
+        KeyError: If the operator/endpoint pair is not recognised.
+
+    Example:
+        >>> from torchmodal.diagnostics import monotone_in_accessibility
+        >>> monotone_in_accessibility("necessity", "L")
+        True
+        >>> monotone_in_accessibility("necessity", "U")
+        False
+    """
+    alias = {"box": "necessity", "diamond": "possibility"}
+    op = alias.get(operator.lower(), operator.lower())
+    key = f"{op}.{endpoint.upper()}"
+    if key not in MONOTONICITY:
+        raise KeyError(
+            f"unknown endpoint {key!r}; expected one of "
+            f"{sorted(MONOTONICITY)}"
+        )
+    return bool(MONOTONICITY[key]["monotone"])

@@ -60,14 +60,17 @@ Reasoning (NeSy 2026), PMLR vol. 284 — oral.
 https://openreview.net/pdf?id=uLOdtBm0Cx
 """
 
-__version__ = "0.2.2"
+__version__ = "0.3.0"
 
 # Core functional API
 from torchmodal import diagnostics, functional, nn
 from torchmodal.diagnostics import (
+    MONOTONICITY,
     GradientHealthError,
     assert_has_signal,
     gradient_health,
+    monotone_in_accessibility,
+    vacuity_report,
 )
 from torchmodal.inference import (
     FormulaGraph,
@@ -112,6 +115,9 @@ __all__ = [
     "gradient_health",
     "assert_has_signal",
     "GradientHealthError",
+    "vacuity_report",
+    "monotone_in_accessibility",
+    "MONOTONICITY",
     # Kripke model
     "KripkeModel",
     "Proposition",

@@ -21,6 +21,7 @@ All functions operate on tensors of truth bounds in [0, 1].
 
 from __future__ import annotations
 
+import math
 import warnings
 
 import torch
@@ -44,6 +45,8 @@ __all__ = [
     "possibility",
     "until",
     "until_graph",
+    # Precision control
+    "auto_tau",
     # Diagnostics
     "box_width_entropy",
     # Contradiction
@@ -311,6 +314,31 @@ class _UnsetTau(float):
 _UNSET_TAU = _UnsetTau(0.1)
 
 
+def _as_bounds(
+    prop_bounds: Tensor, accessibility: Tensor
+) -> tuple[Tensor, bool]:
+    """Normalise a proposition argument to ``(..., |W|, 2)`` bounds.
+
+    Point-valued input is detected by *rank relative to the relation*, not by
+    an absolute rank: a proposition carries one fewer dimension than its
+    accessibility matrix. That rule is exact for both the unbatched case
+    (``(|W|,)`` against ``(|W|, |W|)``) and the batched one (``(B, |W|)``
+    against ``(B, |W|, |W|)``), and stays unambiguous when ``|W| == 2``,
+    where comparing the trailing extent against 2 would not.
+
+    Args:
+        prop_bounds: ``(..., |W|, 2)`` bounds or ``(..., |W|)`` point values.
+        accessibility: ``(..., |W|, |W|)`` relation.
+
+    Returns:
+        ``(bounds, point_valued)``.
+    """
+    point_valued = prop_bounds.dim() == accessibility.dim() - 1
+    if point_valued:
+        prop_bounds = prop_bounds.unsqueeze(-1).expand(*prop_bounds.shape, 2)
+    return prop_bounds, point_valued
+
+
 def _select_terms(x: Tensor, top_k: int | None, largest: bool) -> Tensor:
     """Keep the ``top_k`` extreme aggregation terms of each row of ``x``.
 
@@ -339,9 +367,9 @@ def _select_terms(x: Tensor, top_k: int | None, largest: bool) -> Tensor:
         return x
     if top_k < 1:
         raise ValueError(f"top_k must be a positive integer or None, got {top_k}")
-    if top_k >= x.shape[1]:
+    if top_k >= x.shape[-1]:
         return x
-    return torch.topk(x, top_k, dim=1, largest=largest).values
+    return torch.topk(x, top_k, dim=-1, largest=largest).values
 
 
 def necessity(
@@ -349,6 +377,7 @@ def necessity(
     accessibility: Tensor,
     tau: float = 0.1,
     top_k: int | None = None,
+    precision: float | None = None,
 ) -> Tensor:
     r"""Necessity (Box / □) operator — differentiable Kripke semantics.
 
@@ -418,47 +447,59 @@ def necessity(
     assuming it, and check deep nests with
     :func:`torchmodal.diagnostics.gradient_health`.
 
+
+    **Batched input.** A leading batch dimension is accepted on both
+    arguments: ``prop_bounds`` of ``(B, |W|, 2)`` against ``accessibility`` of
+    ``(B, |W|, |W|)`` returns ``(B, |W|, 2)``, and any number of leading
+    dimensions works. Results are bit-identical to looping over the batch.
+    Point-valued input is recognised by carrying exactly one dimension fewer
+    than the relation, which stays unambiguous even when ``|W| == 2``.
+
     Args:
-        prop_bounds: Truth bounds of shape ``(|W|, 2)`` where columns are
-            ``[L, U]``, or ``(|W|,)`` for point-valued truth values (treated
-            as both L and U).
-        accessibility: Accessibility matrix of shape ``(|W|, |W|)``, values
-            in [0, 1].
-        tau: Temperature. Default 0.1.
+        prop_bounds: Truth bounds of shape ``(..., |W|, 2)`` where columns are
+            ``[L, U]``, or ``(..., |W|)`` for point-valued truth values
+            (treated as both L and U).
+        accessibility: Accessibility matrix of shape ``(..., |W|, |W|)``,
+            values in [0, 1].
+        tau: Temperature. Default 0.1. Ignored when ``precision`` is given.
         top_k: If set, aggregate only the ``top_k`` smallest implication
             terms per world and endpoint. ``None`` (default) aggregates the
             full row. Must be a positive integer.
+        precision: Target bracket width, as an alternative to ``tau``: state
+            the imprecision you can tolerate and the temperature is chosen by
+            :func:`auto_tau` to guarantee it. Overrides ``tau`` when given.
 
     Returns:
-        Tensor of shape ``(|W|, 2)`` or ``(|W|,)`` with necessity bounds.
+        Tensor of shape ``(..., |W|, 2)`` or ``(..., |W|)`` with necessity
+        bounds.
     """
-    point_valued = prop_bounds.dim() == 1
-    if point_valued:
-        prop_bounds = prop_bounds.unsqueeze(-1).expand(-1, 2)
+    tau = _resolve_tau(tau, precision, accessibility, top_k)
+    prop_bounds, point_valued = _as_bounds(prop_bounds, accessibility)
 
-    L_phi = prop_bounds[:, 0]  # (|W|,)
-    U_phi = prop_bounds[:, 1]  # (|W|,)
+    L_phi = prop_bounds[..., 0]  # (..., |W|)
+    U_phi = prop_bounds[..., 1]  # (..., |W|)
 
-    # (|W|, |W|): implication terms per source-target world pair
-    impl_L = (1.0 - accessibility) + L_phi.unsqueeze(0)  # broadcast target
-    impl_U = (1.0 - accessibility) + U_phi.unsqueeze(0)
+    # (..., |W|, |W|): implication terms per source-target world pair.
+    # unsqueeze(-2) broadcasts the target world along the source axis.
+    impl_L = (1.0 - accessibility) + L_phi.unsqueeze(-2)
+    impl_U = (1.0 - accessibility) + U_phi.unsqueeze(-2)
 
     # Top-k: keep the k smallest terms of each endpoint (the true minimum is
     # always among them), so the aggregations below see only k terms.
     impl_L = _select_terms(impl_L, top_k, largest=False)
     impl_U = _select_terms(impl_U, top_k, largest=False)
 
-    # Lower bound: smooth_min over target worlds (dim=1)
-    L_box = smooth_min(impl_L, tau=tau, dim=1)
+    # Lower bound: smooth_min over target worlds (the last axis)
+    L_box = smooth_min(impl_L, tau=tau, dim=-1)
 
     # Upper bound: conv_pool with the negated implication as the logit (z = -x)
-    U_box = conv_pool(impl_U, -impl_U, tau=tau, dim=1)
+    U_box = conv_pool(impl_U, -impl_U, tau=tau, dim=-1)
 
     result = torch.stack([L_box, U_box], dim=-1)
     result = torch.clamp(result, 0.0, 1.0)
 
     if point_valued:
-        return result[:, 0]
+        return result[..., 0]
     return result
 
 
@@ -467,6 +508,7 @@ def possibility(
     accessibility: Tensor,
     tau: float = 0.1,
     top_k: int | None = None,
+    precision: float | None = None,
 ) -> Tensor:
     r"""Possibility (Diamond / ♢) operator — differentiable Kripke semantics.
 
@@ -501,27 +543,38 @@ def possibility(
     toward the ceiling at the same rate that a nest of □ operators drifts
     toward the floor.
 
+
+    **Batched input.** A leading batch dimension is accepted on both
+    arguments: ``prop_bounds`` of ``(B, |W|, 2)`` against ``accessibility`` of
+    ``(B, |W|, |W|)`` returns ``(B, |W|, 2)``, and any number of leading
+    dimensions works. Results are bit-identical to looping over the batch.
+    Point-valued input is recognised by carrying exactly one dimension fewer
+    than the relation, which stays unambiguous even when ``|W| == 2``.
+
     Args:
-        prop_bounds: Truth bounds of shape ``(|W|, 2)`` or ``(|W|,)``.
-        accessibility: Accessibility matrix ``(|W|, |W|)`` in [0, 1].
-        tau: Temperature. Default 0.1.
+        prop_bounds: Truth bounds of shape ``(..., |W|, 2)`` or
+            ``(..., |W|)``.
+        accessibility: Accessibility matrix ``(..., |W|, |W|)`` in [0, 1].
+        tau: Temperature. Default 0.1. Ignored when ``precision`` is given.
         top_k: If set, aggregate only the ``top_k`` largest conjunction
             terms per world and endpoint. ``None`` (default) aggregates the
             full row. Must be a positive integer.
+        precision: Target bracket width, as an alternative to ``tau``. See
+            :func:`auto_tau`.
 
     Returns:
-        Tensor of shape ``(|W|, 2)`` or ``(|W|,)`` with possibility bounds.
+        Tensor of shape ``(..., |W|, 2)`` or ``(..., |W|)`` with possibility
+        bounds.
     """
-    point_valued = prop_bounds.dim() == 1
-    if point_valued:
-        prop_bounds = prop_bounds.unsqueeze(-1).expand(-1, 2)
+    tau = _resolve_tau(tau, precision, accessibility, top_k)
+    prop_bounds, point_valued = _as_bounds(prop_bounds, accessibility)
 
-    L_phi = prop_bounds[:, 0]
-    U_phi = prop_bounds[:, 1]
+    L_phi = prop_bounds[..., 0]
+    U_phi = prop_bounds[..., 1]
 
-    # conjunction terms
-    conj_L = accessibility + L_phi.unsqueeze(0) - 1.0
-    conj_U = accessibility + U_phi.unsqueeze(0) - 1.0
+    # conjunction terms; unsqueeze(-2) broadcasts the target world
+    conj_L = accessibility + L_phi.unsqueeze(-2) - 1.0
+    conj_U = accessibility + U_phi.unsqueeze(-2) - 1.0
 
     # Top-k: keep the k largest terms of each endpoint (the true maximum is
     # always among them).
@@ -529,17 +582,156 @@ def possibility(
     conj_U = _select_terms(conj_U, top_k, largest=True)
 
     # Lower bound: conv_pool with the conjunction as both value and logit (z = x)
-    L_dia = conv_pool(conj_L, conj_L, tau=tau, dim=1)
+    L_dia = conv_pool(conj_L, conj_L, tau=tau, dim=-1)
 
     # Upper bound: smooth_max (weighted existential)
-    U_dia = smooth_max(conj_U, tau=tau, dim=1)
+    U_dia = smooth_max(conj_U, tau=tau, dim=-1)
 
     result = torch.stack([L_dia, U_dia], dim=-1)
     result = torch.clamp(result, 0.0, 1.0)
 
     if point_valued:
-        return result[:, 1]  # for point values return upper (existential)
+        return result[..., 1]  # for point values return upper (existential)
     return result
+
+
+def auto_tau(
+    accessibility: Tensor,
+    target_width: float,
+    prop_bounds: Tensor | None = None,
+    top_k: int | None = None,
+    tol: float = 1e-9,
+    max_iter: int = 80,
+) -> float:
+    r"""Temperature achieving a target bracket width — the inverse of the gap.
+
+    Every other entry point in this module asks for a temperature and tells
+    you, afterwards, how wide the resulting bracket is. This inverts that:
+    state the imprecision you can tolerate, and get the ``tau`` that delivers
+    it.
+
+    **Which direction it errs.** The returned temperature is always *safe* —
+    the realised width is at most ``target_width``, never more — so a bound
+    computed at this temperature encloses the crisp value to within the
+    requested tolerance.
+
+    Two modes:
+
+    - **Closed form** (``prop_bounds=None``). Uses the frame-only bound
+      :math:`\tau H(w) \le \tau \log n`, giving
+
+      .. math:: \tau = \varepsilon / \log n,
+
+      with ``n`` the number of aggregated terms (``top_k``, else ``|W|``).
+      This holds for *any* proposition, so it is the temperature to use when
+      the bounds are not yet known — during training, for instance, where they
+      change every step. It is conservative: since :math:`H \le \log n` with
+      equality only when every term ties, the realised width is usually well
+      under target.
+
+    - **Exact** (``prop_bounds`` supplied). Bisects on the true
+      :func:`box_width_entropy` for those bounds, returning the **largest**
+      ``tau`` whose worst-case per-world width still meets the target. This is
+      tighter — often by a wide margin on a non-uniform frame — and a larger
+      ``tau`` means better-conditioned gradients, so prefer it whenever the
+      bounds are available.
+
+    .. note::
+       The width is monotone non-decreasing in ``tau`` (it vanishes as
+       :math:`\tau \to 0`, where the softmin weights concentrate on a single
+       term, and grows to :math:`\tau \log n` as the weights flatten), which
+       is what makes the bisection well posed.
+
+    Args:
+        accessibility: Accessibility matrix ``(..., |W|, |W|)``.
+        target_width: The bracket width to achieve, in truth units. Must be
+            positive.
+        prop_bounds: Optional ``(..., |W|, 2)`` bounds (or ``(..., |W|)``
+            point values). When given, the exact mode is used.
+        top_k: Match the ``top_k`` of the operator being configured, so the
+            term count agrees. Default ``None``.
+        tol: Bisection tolerance on ``tau``. Default 1e-9.
+        max_iter: Maximum bisection steps. Default 80.
+
+    Returns:
+        A temperature, as a Python float.
+
+    Raises:
+        ValueError: If ``target_width`` is not positive.
+
+    Example:
+        >>> import torch
+        >>> from torchmodal.functional import auto_tau, box_width_entropy
+        >>> A = torch.ones(10, 10)
+        >>> tau = auto_tau(A, target_width=0.05)
+        >>> bool(box_width_entropy(A, torch.full((10, 2), 0.5),
+        ...                        tau=tau).max() <= 0.05 + 1e-9)
+        True
+    """
+    if target_width <= 0:
+        raise ValueError(
+            f"target_width must be positive, got {target_width}"
+        )
+
+    n = accessibility.shape[-1]
+    if top_k is not None:
+        n = min(top_k, n)
+    if n <= 1:
+        # A single aggregated term has zero entropy at any temperature, so no
+        # temperature is excluded; return the closed-form value for n = 2 as a
+        # finite, well-conditioned default rather than an unbounded one.
+        return float(target_width / math.log(2))
+
+    closed_form = float(target_width / math.log(n))
+    if prop_bounds is None:
+        return closed_form
+
+    def width(t: float) -> float:
+        return float(
+            box_width_entropy(
+                accessibility, prop_bounds, tau=t, top_k=top_k
+            ).max()
+        )
+
+    # The closed form is a guaranteed-safe lower bracket; grow an upper one
+    # until it violates, then bisect between them.
+    lo = closed_form
+    hi = closed_form
+    for _ in range(max_iter):
+        if width(hi * 2.0) > target_width:
+            break
+        hi *= 2.0
+        lo = hi
+    else:  # pragma: no cover - width stayed under target throughout
+        return hi
+    hi *= 2.0
+
+    for _ in range(max_iter):
+        if hi - lo <= tol:
+            break
+        mid = 0.5 * (lo + hi)
+        if width(mid) <= target_width:
+            lo = mid
+        else:
+            hi = mid
+    return lo
+
+
+def _resolve_tau(
+    tau: float,
+    precision: float | None,
+    accessibility: Tensor,
+    top_k: int | None,
+) -> float:
+    """Pick the temperature from either ``tau`` or ``precision``.
+
+    ``precision`` is the inverse spelling of ``tau``: a caller states the
+    bracket width they can tolerate and :func:`auto_tau` supplies the
+    temperature. The two are mutually exclusive.
+    """
+    if precision is None:
+        return tau
+    return auto_tau(accessibility, precision, top_k=top_k)
 
 
 def box_width_entropy(
@@ -593,16 +785,17 @@ def box_width_entropy(
       produces neither loss nor gradient.
 
     Args:
-        accessibility: Accessibility matrix ``(|W|, |W|)`` in [0, 1].
-        prop_bounds: Truth bounds ``(|W|, 2)`` as ``[L, U]``, or ``(|W|,)``
-            for point-valued truth values.
+        accessibility: Accessibility matrix ``(..., |W|, |W|)`` in [0, 1].
+        prop_bounds: Truth bounds ``(..., |W|, 2)`` as ``[L, U]``, or
+            ``(..., |W|)`` for point-valued truth values. A leading batch
+            dimension is accepted, as on :func:`necessity`.
         tau: Temperature. Must match the ``tau`` of the □ level being
             diagnosed. Default 0.1.
         top_k: Match the ``top_k`` of the □ level being diagnosed, so the
             entropy is taken over the same kept terms. Default ``None``.
 
     Returns:
-        Tensor of shape ``(|W|,)``: the width, in truth units, that this
+        Tensor of shape ``(..., |W|)``: the width, in truth units, that this
         □ level contributes at each source world.
 
     Example:
@@ -615,18 +808,23 @@ def box_width_entropy(
         >>> bool(torch.allclose(w, box[:, 1] - box[:, 0], atol=1e-6))
         True
     """
-    if prop_bounds.dim() == 1:
-        U_phi = prop_bounds
-    else:
-        U_phi = prop_bounds[:, 1]
+    prop_bounds, _ = _as_bounds(prop_bounds, accessibility)
+    U_phi = prop_bounds[..., 1]
 
-    terms = (1.0 - accessibility) + U_phi.unsqueeze(0)
+    terms = (1.0 - accessibility) + U_phi.unsqueeze(-2)
     terms = _select_terms(terms, top_k, largest=False)
 
-    weights = torch.softmax(-terms / tau, dim=1)
-    # clamp_min keeps log finite for weights that underflow to exactly 0;
-    # those terms contribute 0 to the entropy either way.
-    entropy = -(weights * torch.log(weights.clamp_min(1e-300))).sum(dim=1)
+    # Computed from log-softmax rather than softmax-then-log: at small tau the
+    # smallest weights underflow to exactly 0, and 0 * log(0) is NaN. A
+    # clamp_min floor does not rescue this in float32, where any floor below
+    # ~1e-38 is itself flushed to zero. Masking the zero-weight terms — which
+    # contribute 0 to the entropy in the limit — is exact and dtype-agnostic.
+    log_w = torch.log_softmax(-terms / tau, dim=-1)
+    weights = log_w.exp()
+    plogp = torch.where(
+        weights > 0, weights * log_w, torch.zeros_like(weights)
+    )
+    entropy = -plogp.sum(dim=-1)
     # Entropy is non-negative by definition; clamp away the -0.0 / tiny
     # negative values float arithmetic produces in the degenerate
     # single-term case (top_k=1), where the exact answer is 0.
