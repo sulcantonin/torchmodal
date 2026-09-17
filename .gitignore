@@ -13,3 +13,10 @@ site/
 
 # Local drafts, never published
 RELEASE_NOTES_DRAFT.md
+
+# Secrets — never commit. This repository is public.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
