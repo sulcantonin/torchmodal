@@ -60,7 +60,7 @@ Reasoning (NeSy 2026), PMLR vol. 284 — oral.
 https://openreview.net/pdf?id=uLOdtBm0Cx
 """
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 # Core functional API
 from torchmodal import diagnostics, epistemic, functional, nn

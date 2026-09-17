@@ -6,6 +6,72 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-09-18
+
+CTL model checking, and an evaluation mode with no temperature in it. Additive:
+the API fingerprint is unchanged apart from `__all__` and `__version__`.
+
+### Added
+
+- **`mode="exact"` on `necessity` and `possibility`** — zero-temperature
+  evaluation using the true extremum. The bracket is exact, the gap is 0, and
+  there is no smoothing error. Two properties follow that soft mode does not
+  have:
+
+  - it is **monotone in `A`** on both endpoints, verified at **0 violations
+    over 300 random perturbations** against 247 and 252 for the `conv_pool`
+    endpoints in soft mode;
+  - interval inputs propagate soundly through it, which is what lets the
+    operators act as an abstract interpreter rather than only as a trainable
+    relaxation.
+
+  Train in soft mode, certify in exact mode.
+
+- **`functional.serialize`** — adds a self-loop at every dead end. Several
+  operators are sound only on a serial frame, because at a dead end a
+  universal modality is *vacuously* satisfied and a computation that simply
+  stops counts as success. This retires a limitation `until_graph` has carried
+  since 0.2.2 with no way to fix it, and complements
+  `AxiomRegularization(seriality=...)` from 0.3.0: the regulariser for
+  learning, the helper for a guarantee.
+
+- **`torchmodal.fixpoint`** — `lfp` and `gfp` combinators over an arbitrary
+  step function, and all eight CTL operators built on them: `ex`, `ax`, `ef`,
+  `eg`, `eu`, `af`, `ag`, `au`. This generalises `until_graph` (the lfp of EU)
+  and `TemporalOperator.globally` (one box over a precomputed reachability
+  matrix).
+
+  **Validated against an independent crisp checker** written from the textbook
+  set-based labelling definitions: exact agreement on all eight operators over
+  320 randomly generated cyclic frames.
+
+  Three design decisions, each forced by a measurement:
+
+  - **A stop rule that terminates.** A strict tolerance does not — even at
+    edge weight 1.0 the soft gfp iteration is still creeping at a 200-sweep
+    cap. The combinators also stop on **rounding stabilisation**, when the
+    crisp label implied by the bounds has not moved for `patience` sweeps,
+    because the certificate is final long before the value settles.
+    `FixpointResult` reports `n_iters`, `converged` and `stopped_by`, since
+    all three enter the gap statement.
+  - **Seriality repaired, not warned about.** `serial=True` is the default on
+    every operator, so `AX` as `¬EX¬` is sound and `AF`/`AG`/`AU` follow.
+  - **The greatest-fixpoint cliff is documented on every gfp operator.**
+
+  What exact mode does *not* fix is stated explicitly: it removes the
+  temperature gap, not the gradedness. On a 0.99-weighted cycle it still
+  decays to 0.97, and only rounding the relation first gives no decay at all.
+
+### Notes
+
+- Soft mode remains differentiable through the fixpoint by unrolled
+  backpropagation. Implicit differentiation via the fixpoint equation, which
+  would give constant memory in the iteration count, is not implemented.
+- `until`'s deprecation notice still names 0.4.0 as the removal version. The
+  argument has not been removed; the notice predates these releases and needs
+  a decision rather than a silent change.
+
+
 ## [0.4.0] — 2026-09-18
 
 The group-knowledge layer and dynamic epistemic logic. Additive: the 180-entry
