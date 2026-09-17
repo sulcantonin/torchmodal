@@ -6,6 +6,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-09-17
+
 > **No existing public call returns a different value.** Every change below is
 > additive — new functions, new modules, or new parameters whose defaults
 > reproduce today's output exactly. Verified two ways: a 180-entry bit-exact
@@ -128,6 +130,17 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 - **Packaging metadata** — `pyproject.toml` gained keywords, full trove
   classifiers, a `Paper` and `Documentation` URL, and a `docs` extra.
+
+- **`misc/MLNN.pdf` replaced with the arXiv v3 camera-ready** (revised
+  2026-09-05). The bundled copy was the v2 build, titled *Modal Logical Neural
+  Networks* with a single author, and so contradicted the corrected metadata in
+  the rest of the repository. The v3 title page confirms the title, both
+  authors, and PMLR vol. 284, pp. 1–34.
+
+- **`.gitignore` now covers `.env` and other secret files.** A `.env` present in
+  the working tree was not ignored, so a `git add -A` would have committed it to
+  a public repository. It had never been committed — verified against the full
+  history.
 
 - **README restructured** to lead with what the library is in one sentence, the
   NeSy 2026 oral, a runnable ten-line epistemic puzzle, a comparison against LNN,
