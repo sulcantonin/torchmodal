@@ -6,6 +6,68 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-09-18
+
+Abstract inputs and certificates: the point at which "soundness is a property
+you can check" becomes true end to end. Additive — the API fingerprint is
+unchanged apart from `__all__` and `__version__`.
+
+### Added
+
+- **`functional.necessity_mts` / `possibility_mts`** — modal transition
+  systems, carrying a `must` relation (required transitions) and a `may`
+  relation (permitted ones), with well-formedness `must <= may` checked.
+
+  The returned interval brackets the value on **every** Kripke frame lying
+  between the two, so a conclusion proved on the abstraction holds for every
+  concretisation. Verified by sampling: **0 of 400 concretisations escaped the
+  interval**.
+
+  Which relation each endpoint uses follows from the quantifier. Box is
+  universal, so its lower bound quantifies over `may` (it must survive every
+  transition that could exist) and its upper over `must`. Diamond is
+  existential and swaps them. With `must == may` both reduce **exactly** to
+  the single-relation operators, which is what makes this additive.
+
+- **`torchmodal.verify`** —
+
+  - `certify` returns `PROVEN` / `REFUTED` / **`UNDECIDED`** per world, the
+    last being a first-class outcome rather than an error. An interval that
+    straddles the decision boundary does not settle the question, and saying
+    so is more useful than rounding.
+  - `round_and_certify` thresholds a learned relation, re-evaluates it with
+    `mode="exact"`, and returns the verdicts together with the rounded frame
+    the certificate is actually *about* and `n_flipped`, how far that frame
+    moved from the learned one.
+  - `rounding_margin` — distance of each truth midpoint from 0.5. This is to
+    the rounding step what `box_width_entropy` is to the modal step: it turns
+    "is this certificate trustworthy?" into a number. A margin near zero means
+    the crisp label is a coin flip.
+  - `certificate_gap` — how often the soft rounding and the exact answer
+    disagree. Zero means the soft model is already making the decisions the
+    exact checker would, which is the condition under which training against
+    the soft operators is safe.
+  - `witness_path` — a shortest path backing a reachability verdict, or
+    `None`, which is itself the evidence behind a refutation.
+  - `to_smv` — export a rounded frame as a nuXmv / NuSMV module, with
+    `DEFINE` predicates and an optional `CTLSPEC`. Dead ends are rejected with
+    a pointer to `serialize`, since SMV requires a total transition relation.
+
+### Notes
+
+- **The SMV exporter is structurally validated only.** This package does not
+  bundle nuXmv, and none was available when the exporter was written, so the
+  generated module is checked for well-formedness but has **not** been run
+  through a real model checker. It produces input for a tool you then run; it
+  is not itself a verified oracle. A genuine round-trip test against nuXmv
+  remains outstanding and is the single most valuable thing that could be
+  added to this module.
+- Soft interval evaluation through the MTS operators is a relaxation *of an
+  abstraction*: only the outer enclosure survives, because the soft endpoints
+  are not monotone in the relation. Use `mode="exact"` when the result is
+  meant as a certificate.
+
+
 ## [0.5.0] — 2026-09-18
 
 CTL model checking, and an evaluation mode with no temperature in it. Additive:

@@ -70,6 +70,7 @@ nav:
       - diagnostics: api/diagnostics.md
       - epistemic: api/epistemic.md
       - fixpoint: api/fixpoint.md
+      - verify: api/verify.md
       - nn: api/nn.md
       - kripke: api/kripke.md
       - inference: api/inference.md

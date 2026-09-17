@@ -53,6 +53,9 @@ __all__ = [
     "auto_tau",
     # Frame repair
     "serialize",
+    # Modal transition systems (must / may relations)
+    "necessity_mts",
+    "possibility_mts",
     # Diagnostics
     "box_width_entropy",
     # Contradiction
@@ -949,6 +952,136 @@ def box_width_entropy(
     # negative values float arithmetic produces in the degenerate
     # single-term case (top_k=1), where the exact answer is 0.
     return (tau * entropy).clamp_min(0.0)
+
+
+def _check_mts(must: Tensor, may: Tensor) -> None:
+    """Well-formedness of a modal transition system: ``must <= may``."""
+    if must.shape != may.shape:
+        raise ValueError(
+            f"must and may must have the same shape, got "
+            f"{tuple(must.shape)} and {tuple(may.shape)}"
+        )
+    if bool((must > may + 1e-6).any()):
+        raise ValueError(
+            "ill-formed modal transition system: some required transition is "
+            "not permitted (must > may). The must relation must be contained "
+            "in the may relation."
+        )
+
+
+def necessity_mts(
+    prop_bounds: Tensor,
+    must: Tensor,
+    may: Tensor,
+    tau: float = 0.1,
+    top_k: int | None = None,
+    mode: str = "soft",
+) -> Tensor:
+    r"""Necessity over a **modal transition system**.
+
+    A modal transition system carries two relations rather than one: ``must``,
+    the transitions that are required to exist, and ``may``, those that are
+    permitted. Well-formedness is ``must <= may`` pointwise, and it is checked.
+
+    This is an *abstraction* of a set of concrete Kripke frames — every frame
+    whose relation lies between ``must`` and ``may``. The returned interval
+    therefore brackets the value of :math:`\Box\varphi` on **all** of them at
+    once, which is what makes it useful for verification: a conclusion proved
+    here holds for every concretisation.
+
+    **Which relation each endpoint uses.** :math:`\Box` is universal, so more
+    transitions make it harder to satisfy:
+
+    - the **lower** bound quantifies over ``may`` — it must survive every
+      transition that could exist;
+    - the **upper** bound quantifies over ``must`` — it need only hold across
+      the transitions that definitely exist.
+
+    :func:`possibility_mts` swaps them, being existential. The two are duals.
+
+    **Reduces exactly.** With ``must == may == A`` this returns exactly
+    ``necessity(prop_bounds, A, ...)``; the single-relation operator is the
+    special case where nothing is uncertain.
+
+    .. note::
+       Use ``mode="exact"`` when the result is meant as a certificate.
+       Interval inputs propagate soundly through the exact endpoints, which
+       are monotone in the relation; the soft endpoints are not (see
+       :func:`conv_pool`), so a soft interval evaluation is a relaxation of an
+       abstraction and only the outer enclosure survives.
+
+    Args:
+        prop_bounds: ``(..., |W|, 2)`` bounds, or ``(..., |W|)`` point values.
+        must: ``(..., |W|, |W|)`` required transitions, in [0, 1].
+        may: ``(..., |W|, |W|)`` permitted transitions, in [0, 1].
+        tau: Temperature. Default 0.1.
+        top_k: As on :func:`necessity`.
+        mode: ``"soft"`` or ``"exact"``.
+
+    Returns:
+        ``(..., |W|, 2)`` bounds, or ``(..., |W|)`` when point-valued in.
+
+    Raises:
+        ValueError: If the system is ill-formed (``must > may`` anywhere).
+
+    Example:
+        >>> import torch
+        >>> from torchmodal.functional import necessity_mts, necessity
+        >>> A = torch.rand(4, 4)
+        >>> b = torch.rand(4, 2).sort(dim=1).values
+        >>> bool(torch.equal(necessity_mts(b, A, A), necessity(b, A)))
+        True
+    """
+    _check_mts(must, may)
+    lower = necessity(prop_bounds, may, tau=tau, top_k=top_k, mode=mode)
+    upper = necessity(prop_bounds, must, tau=tau, top_k=top_k, mode=mode)
+    if lower.dim() == prop_bounds.dim() and prop_bounds.dim() == may.dim() - 1:
+        # point-valued in, point-valued out
+        return torch.minimum(lower, upper)
+    return torch.stack([lower[..., 0], upper[..., 1]], dim=-1)
+
+
+def possibility_mts(
+    prop_bounds: Tensor,
+    must: Tensor,
+    may: Tensor,
+    tau: float = 0.1,
+    top_k: int | None = None,
+    mode: str = "soft",
+) -> Tensor:
+    r"""Possibility over a **modal transition system**.
+
+    The existential dual of :func:`necessity_mts`. :math:`\Diamond` is
+    satisfied by a single witness, so more transitions make it *easier*:
+
+    - the **lower** bound quantifies over ``must`` — the witness has to be a
+      transition that definitely exists;
+    - the **upper** bound quantifies over ``may`` — any permitted transition
+      could serve.
+
+    **Reduces exactly.** With ``must == may == A`` this returns exactly
+    ``possibility(prop_bounds, A, ...)``.
+
+    Args:
+        prop_bounds: ``(..., |W|, 2)`` bounds, or ``(..., |W|)`` point values.
+        must: ``(..., |W|, |W|)`` required transitions, in [0, 1].
+        may: ``(..., |W|, |W|)`` permitted transitions, in [0, 1].
+        tau: Temperature. Default 0.1.
+        top_k: As on :func:`possibility`.
+        mode: ``"soft"`` or ``"exact"``.
+
+    Returns:
+        ``(..., |W|, 2)`` bounds, or ``(..., |W|)`` when point-valued in.
+
+    Raises:
+        ValueError: If the system is ill-formed (``must > may`` anywhere).
+    """
+    _check_mts(must, may)
+    lower = possibility(prop_bounds, must, tau=tau, top_k=top_k, mode=mode)
+    upper = possibility(prop_bounds, may, tau=tau, top_k=top_k, mode=mode)
+    if lower.dim() == prop_bounds.dim() and prop_bounds.dim() == may.dim() - 1:
+        return torch.maximum(lower, upper)
+    return torch.stack([lower[..., 0], upper[..., 1]], dim=-1)
 
 
 def until(
