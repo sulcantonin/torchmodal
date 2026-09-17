@@ -256,7 +256,7 @@ def common_knowledge(
     group: Group = None,
     tau: float = 0.1,
     tnorm: str = "godel",
-    tau_decay: Optional[float] = None,
+    tau_decay: Optional[float] = 0.5,
     max_depth: Optional[int] = None,
     tol: float = 1e-4,
     max_iter: int = 200,
@@ -280,12 +280,22 @@ def common_knowledge(
           the fixpoint approximates and it keeps its gradient.
         - The **upper** bound remains informative and is the right read-out for
           "is common knowledge still attainable?".
-        - Pass ``tau_decay`` (e.g. ``0.5``) or ``max_depth`` to obtain a
-          non-vacuous lower bound: with a geometric schedule the accumulated
-          slack is bounded by ``tau * H / (1 - tau_decay)`` instead of growing
+        - ``tau_decay`` therefore **defaults to 0.5**, matching
+          :func:`~torchmodal.functional.until_graph`, so the operator is
+          usable as delivered. With a geometric schedule the accumulated slack
+          is bounded by ``tau * H / (1 - tau_decay)`` instead of growing
           without limit. Measured at ``tau=0.1``, 6 agents, φ = ``[0.9, 1]``,
-          ``tnorm="godel"``, ``tau_decay=0.5``: complete 0.542, star 0.647,
-          ring 0.680, path 0.688 — against 0.000 for all four by default.
+          ``tnorm="godel"``: complete 0.542, star 0.647, ring 0.680, path
+          0.688 — against **0.000, with exactly zero gradient**, for all four
+          when the schedule is disabled with ``tau_decay=None``.
+        - This is the same failure as the *greatest-fixpoint cliff*: iterating
+          a gfp down from ⊤ through a smooth ♢ loses a little each sweep, and
+          below roughly 0.999 edge weight there is no non-zero fixed point to
+          land on — measured on a 6-cycle at ``tau=0.1``, the value falls
+          0.955 -> 0.754 -> 0.000 as the weight goes 1.0 -> 0.999 -> 0.99.
+          The annealed schedule is what makes the sequence summable. Setting
+          ``tau_decay=None`` restores the unannealed behaviour and the floor
+          with it.
 
         The crisp limit is unaffected: as ``tau -> 0`` with crisp inputs the
         operator recovers classical common knowledge. The floor is a
@@ -300,8 +310,10 @@ def common_knowledge(
         group: Agent indices. Default: all.
         tau: Base temperature. Default 0.1.
         tnorm: Conjunction and group fold; see :func:`and_bounds`.
-        tau_decay: Geometric temperature decay per iteration. Default ``None``
-            (fixed ``tau`` — the vacuous-lower-bound regime above).
+        tau_decay: Geometric temperature decay per iteration, in ``(0, 1]``.
+            Default ``0.5``. ``None`` disables annealing and restores the
+            vacuous-lower-bound regime described above; it is kept only for
+            reproducing that behaviour deliberately.
         max_depth: Stop after this many iterations instead of converging.
         tol: Sup-norm convergence threshold. Default 1e-4.
         max_iter: Iteration cap. Default 200.

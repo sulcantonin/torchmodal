@@ -79,7 +79,12 @@ def _triple_terms(A: Tensor, axiom: str) -> tuple[Tensor, Tensor]:
     return antecedent, sat
 
 
-def shuffled_null(A: Tensor, shuffles: int, axiom: str, generator=None) -> float:
+def shuffled_null(
+    A: Tensor,
+    shuffles: int,
+    axiom: str,
+    generator: Optional[torch.Generator] = None,
+) -> float:
     """Mean score on ``shuffles`` shape-matched copies of ``A``.
 
     Each copy keeps every world's self-weight and its multiset of outgoing
@@ -116,7 +121,7 @@ def frame_audit(
     A: Tensor,
     shuffles: int = 100,
     coverage_eps: float = 1e-6,
-    generator=None,
+    generator: Optional[torch.Generator] = None,
 ) -> Dict[str, AxiomReport]:
     r"""Audit a relation against T, D, B, 4 and 5, with vacuity correction.
 
@@ -144,7 +149,8 @@ def frame_audit(
         >>> import torch
         >>> from torchmodal.epistemic import frame_audit
         >>> A = torch.eye(4)
-        >>> frame_audit(A, shuffles=5)["reflexive"]["score"]
+        >>> report = frame_audit(A, shuffles=5)["reflexive"]
+        >>> report["score"]
         1.0
     """
     A = A.detach()

@@ -68,6 +68,7 @@ nav:
   - API reference:
       - functional: api/functional.md
       - diagnostics: api/diagnostics.md
+      - epistemic: api/epistemic.md
       - nn: api/nn.md
       - kripke: api/kripke.md
       - inference: api/inference.md

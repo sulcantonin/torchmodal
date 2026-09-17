@@ -249,3 +249,129 @@ class TestNestedNecessityFloors:
         width = F.box_width_entropy(A, torch.ones(8, 2), tau=0.1)[0].item()
         vals = self._depths(A, k=3)
         assert (vals[0] - vals[1]) == pytest.approx(width, abs=1e-3)
+
+
+class TestGreatestFixpointCliff:
+    """A greatest fixpoint over a graded relation has no non-zero fixpoint.
+
+    Iterating a gfp down from the top through a smooth ♢ loses a little on
+    every sweep, and on a sub-unit relation there is nothing above zero to
+    land on. The collapse is *not* a t-norm artefact — Gödel, product and
+    Łukasiewicz all do it, because the lossy step is the modal one, not the
+    conjunction. The cure is an annealed temperature (a summable schedule),
+    which is why :func:`torchmodal.epistemic.common_knowledge` defaults to
+    ``tau_decay=0.5``.
+
+    These tests pin the failure so nobody builds ``EG``/``AG`` on the
+    assumption that it degrades gracefully. It does not: it is a cliff.
+    """
+
+    @staticmethod
+    def _eg_gfp(phi, A, tau=0.1, max_iter=200, tol=1e-6, tnorm="godel"):
+        """EG(phi) = phi ∧ ♢EG(phi), iterated down from ⊤."""
+        cur = torch.ones_like(phi)
+        for _ in range(max_iter):
+            mb = F.possibility(cur, A, tau=tau)
+            if tnorm == "godel":
+                nxt = torch.minimum(phi, mb)
+            elif tnorm == "product":
+                nxt = phi * mb
+            else:
+                nxt = torch.clamp(phi + mb - 1.0, min=0.0)
+            nxt = torch.clamp(nxt, 0.0, 1.0)
+            delta = (nxt - cur).abs().max().item()
+            cur = nxt
+            if delta < tol:
+                break
+        return cur
+
+    @staticmethod
+    def _cycle(n=6, weight=1.0):
+        A = torch.zeros(n, n)
+        A[torch.arange(n), (torch.arange(n) + 1) % n] = weight
+        return A
+
+    def test_collapses_over_a_one_percent_range(self):
+        """Measured on a 6-cycle with phi true everywhere, tau = 0.1:
+
+        ======  ========
+        weight  EG value
+        ======  ========
+        1.000   0.9546
+        0.999   0.7542
+        0.990   **0.0000**
+        0.900   0.0000
+        ======  ========
+
+        A 1% softening of the relation takes the value from 0.95 to 0.00.
+        The crisp answer is 1 at every weight above 0, so this is entirely
+        an artefact of the smooth iteration.
+        """
+        phi = torch.ones(6, 2)
+        assert self._eg_gfp(phi, self._cycle(weight=1.0))[0, 0].item() > 0.9
+        assert self._eg_gfp(phi, self._cycle(weight=0.999))[0, 0].item() > 0.5
+        for weight in (0.99, 0.9, 0.8):
+            dead = self._eg_gfp(phi, self._cycle(weight=weight))
+            assert dead[0, 0].item() == pytest.approx(0.0, abs=1e-6), weight
+
+    @pytest.mark.parametrize("tnorm", ["godel", "product", "luk"])
+    def test_every_t_norm_collapses(self, tnorm):
+        """The t-norm is not the lossy part — the modal step is."""
+        phi = torch.ones(6, 2)
+        out = self._eg_gfp(phi, self._cycle(weight=0.99), tnorm=tnorm)
+        assert out[0, 0].item() == pytest.approx(0.0, abs=1e-6)
+
+    def test_the_collapse_kills_the_gradient(self):
+        A = self._cycle(weight=0.99).requires_grad_(True)
+        out = self._eg_gfp(torch.ones(6, 2), A)
+        (grad,) = torch.autograd.grad(
+            out[:, 0].sum(), A, allow_unused=True
+        )
+        assert grad is None or grad.abs().max().item() == 0.0
+
+    def test_even_the_crisp_case_does_not_reach_a_fixpoint(self):
+        """At weight 1.0 the iteration is still creeping at the cap.
+
+        A strict tolerance never terminates, so a gfp operator must report
+        its iteration count rather than pretend it converged.
+        """
+        phi = torch.ones(6, 2)
+        out = self._eg_gfp(phi, self._cycle(weight=1.0), max_iter=200)
+        # crisp EG(true) on a cycle is exactly 1 everywhere
+        assert out[0, 0].item() < 1.0
+
+
+class TestCommonKnowledgeNeedsAnnealing:
+    """The same cliff, in the shipped operator."""
+
+    def test_unannealed_lower_bound_is_vacuous(self):
+        from torchmodal.epistemic import common_knowledge
+
+        phi = torch.tensor([[0.9, 1.0]] * 6)
+        A = torch.ones(6, 6) * 0.9
+        out = common_knowledge(phi, A, tau=0.1, tau_decay=None)
+        assert out[0, 0].item() == pytest.approx(0.0, abs=1e-6)
+        assert out[0, 1].item() == pytest.approx(1.0, abs=1e-6)
+
+    def test_the_default_is_annealed_and_informative(self):
+        from torchmodal.epistemic import common_knowledge
+
+        phi = torch.tensor([[0.9, 1.0]] * 6)
+        A = (torch.ones(6, 6) * 0.9).requires_grad_(True)
+        out = common_knowledge(phi, A, tau=0.1)
+        assert out[0, 0].item() > 0.5
+        (grad,) = torch.autograd.grad(out[:, 0].sum(), A)
+        assert grad.abs().max().item() > 0.0
+
+    def test_default_stays_sound_against_the_crisp_value(self):
+        """L_CG must not exceed the crisp answer on a crisp frame."""
+        from torchmodal.epistemic import common_knowledge
+
+        n = 6
+        ring = torch.zeros(n, n)
+        ring[torch.arange(n), (torch.arange(n) + 1) % n] = 1.0
+        # phi false at one world on the cycle -> crisp C_G is false
+        phi = torch.ones(n, 2)
+        phi[4] = 0.0
+        out = common_knowledge(phi, ring, tau=0.05)
+        assert out[0, 0].item() <= 0.0 + 1e-3

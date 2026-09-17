@@ -156,21 +156,38 @@ class TestMutualKnowledgeTower:
 
 
 class TestCommonKnowledge:
-    def test_default_lower_bound_is_vacuous_and_has_no_gradient(self):
-        """Pinned trap: iterating to convergence can only settle on the floor.
+    def test_unannealed_lower_bound_is_vacuous_and_has_no_gradient(self):
+        """Pinned trap: without annealing the gfp can only settle on the floor.
 
-        This is why the documentation sends users to mutual_knowledge for a
-        trainable gauge and to the upper bound for a read-out.
+        This is the greatest-fixpoint cliff — iterating down from the top
+        through a smooth diamond loses a little each sweep, and on a sub-unit
+        relation there is nothing above zero to land on. It is why
+        ``tau_decay`` now defaults to 0.5 rather than None; ``None`` is kept
+        so the failure stays reproducible, and this test holds it in place.
         """
         for phi_lower in (0.7, 0.9, 0.95, 1.0):
             A = dense_relation().requires_grad_(True)
             phi = torch.stack(
                 [torch.full((N_AGENTS,), phi_lower), torch.ones(N_AGENTS)], dim=-1
             )
-            out = common_knowledge(phi, broadcast(A), tau=0.1)
+            out = common_knowledge(
+                phi, broadcast(A), tau=0.1, tau_decay=None
+            )
             assert out[0, 0].item() == 0.0
             grad = torch.autograd.grad(out[0, 0], A, allow_unused=True)[0]
             assert grad is None or grad.abs().max() == 0.0
+
+    def test_default_lower_bound_is_informative_and_trainable(self):
+        """The shipped default must be usable without extra arguments."""
+        for phi_lower in (0.7, 0.9, 1.0):
+            A = dense_relation().requires_grad_(True)
+            phi = torch.stack(
+                [torch.full((N_AGENTS,), phi_lower), torch.ones(N_AGENTS)], dim=-1
+            )
+            out = common_knowledge(phi, broadcast(A), tau=0.1)
+            assert out[0, 0].item() > 0.0
+            grad = torch.autograd.grad(out[0, 0], A)[0]
+            assert grad.abs().max() > 0.0
 
     def test_tau_decay_makes_the_lower_bound_informative(self):
         A = dense_relation().requires_grad_(True)
@@ -203,7 +220,10 @@ class TestCommonKnowledge:
                 [torch.zeros(N_AGENTS), torch.full((N_AGENTS,), upper)], dim=-1
             )
             value = common_knowledge(phi, broadcast(A), tau=0.1)[0, 1].item()
-            assert upper <= value < 1.0
+            # The annealed default makes the upper endpoint tight enough to
+            # land on U_phi to within float error, so compare with tolerance.
+            assert value >= upper - 1e-6
+            assert value < 1.0
             seen.append(value)
         assert seen == sorted(seen), "upper bound must track U_phi monotonically"
 
