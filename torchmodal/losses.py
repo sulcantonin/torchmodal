@@ -241,9 +241,16 @@ class AxiomRegularization(nn.Module):
       System S4: □ϕ → □□ϕ (positive introspection).
     - **Axiom B** (Symmetry): ``A ≈ Aᵀ``.
       System B: ϕ → □♢ϕ (Brouwerian axiom).
+    - **Axiom D** (Seriality): every world has at least one successor
+      (:math:`\max_{w'} A[w, w'] \approx 1`).
+      System KD: □ϕ → ♢ϕ (consistency / no dead ends).
+      Soundness of operators such as ``functional.until_graph(quantifier="box")``
+      depends directly on seriality, because a dead end makes universal path
+      quantification vacuously true.
 
     These can be combined to enforce specific modal logic systems:
     - **System T** = K + Reflexivity
+    - **System KD** = K + Seriality
     - **System S4** = K + Reflexivity + Transitivity
     - **System S5** = K + Reflexivity + Transitivity + Symmetry
     - **System B** = K + Reflexivity + Symmetry
@@ -252,6 +259,8 @@ class AxiomRegularization(nn.Module):
         reflexivity: Weight for reflexivity penalty. Default 0.0.
         transitivity: Weight for transitivity penalty. Default 0.0.
         symmetry: Weight for symmetry penalty. Default 0.0.
+        seriality: Weight for seriality (Axiom D) penalty. Default 0.0.
+        tau: Temperature for smooth_max in seriality penalty. Default 0.1.
 
     Example::
 
@@ -266,11 +275,15 @@ class AxiomRegularization(nn.Module):
         reflexivity: float = 0.0,
         transitivity: float = 0.0,
         symmetry: float = 0.0,
+        seriality: float = 0.0,
+        tau: float = 0.1,
     ) -> None:
         super().__init__()
         self.reflexivity = reflexivity
         self.transitivity = transitivity
         self.symmetry = symmetry
+        self.seriality = seriality
+        self.tau = tau
 
     def forward(self, accessibility: Tensor) -> Tensor:
         """
@@ -300,13 +313,22 @@ class AxiomRegularization(nn.Module):
             diff = accessibility - accessibility.t()
             loss = loss + self.symmetry * torch.mean(diff ** 2)
 
+        if self.seriality > 0:
+            # Axiom D: every world has at least one successor: max_w' A[w, w'] ≈ 1
+            # Uses smooth_max for differentiable multi-entry gradient distribution
+            from torchmodal.functional import smooth_max
+            s_max = smooth_max(accessibility, tau=self.tau, dim=-1)
+            violation = torch.relu(1.0 - s_max)
+            loss = loss + self.seriality * torch.mean(violation ** 2)
+
         return loss
 
     def extra_repr(self) -> str:
         return (
             f"reflexivity={self.reflexivity}, "
             f"transitivity={self.transitivity}, "
-            f"symmetry={self.symmetry}"
+            f"symmetry={self.symmetry}, "
+            f"seriality={self.seriality}"
         )
 
 
