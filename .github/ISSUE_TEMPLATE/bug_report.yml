@@ -1,0 +1,48 @@
+name: Bug report
+description: Something produces a wrong number, raises, or silently does nothing.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If a constraint "has no effect", please run
+        `torchmodal.diagnostics.gradient_health` first and paste the report —
+        that is usually the whole diagnosis. See
+        [SUPPORT.md](https://github.com/sulcantonin/torchmodal/blob/main/SUPPORT.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The number you got and the number you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: A short script that runs as written.
+      render: python
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: "`python -c \"import torch, torchmodal; print(torchmodal.__version__, torch.__version__)\"`"
+      placeholder: "0.8.0 2.14.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Evaluation mode
+      description: soft and exact have different guarantees.
+      options: ["soft (default)", "exact", "both", "not applicable"]
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostic output (optional)
+      description: Output of gradient_health, vacuity_report or box_width_entropy.
+      render: text

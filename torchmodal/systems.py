@@ -18,7 +18,7 @@ Provides ready-to-use modules for specific modal logics:
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Union, cast
 
 import torch
 import torch.nn as nn
@@ -83,7 +83,7 @@ class EpistemicOperator(nn.Module):
         # Reshape agent accessibility to (1, |W|) for single-source eval
         A_row = agent_accessibility.unsqueeze(0)  # (1, |W|)
         result = self.box(prop_bounds, A_row)       # (1, 2) or (1,)
-        return result.squeeze(0)
+        return cast(Tensor, result.squeeze(0))
 
 
 class DoxasticOperator(nn.Module):
@@ -127,7 +127,7 @@ class DoxasticOperator(nn.Module):
         """
         A_row = agent_accessibility.unsqueeze(0)
         result = self.box(prop_bounds, A_row)
-        return result.squeeze(0)
+        return cast(Tensor, result.squeeze(0))
 
 
 class TemporalOperator(nn.Module):
@@ -197,7 +197,7 @@ class TemporalOperator(nn.Module):
         Returns:
             Bounds for G(ϕ).
         """
-        return self.box(prop_bounds, temporal_accessibility)
+        return cast(Tensor, self.box(prop_bounds, temporal_accessibility))
 
     def finally_(
         self, prop_bounds: Tensor, temporal_accessibility: Tensor
@@ -211,7 +211,7 @@ class TemporalOperator(nn.Module):
         Returns:
             Bounds for F(ϕ).
         """
-        return self.diamond(prop_bounds, temporal_accessibility)
+        return cast(Tensor, self.diamond(prop_bounds, temporal_accessibility))
 
     def until(
         self,
@@ -289,7 +289,12 @@ class MultiAgentKripke(nn.Module):
         A_temporal = self._build_spacetime_temporal()
         self.register_buffer("A_temporal", A_temporal)
 
-        # Epistemic accessibility (learnable)
+        # Epistemic accessibility: learnable, or a fixed identity. Annotated
+        # as the union so mypy accepts both branches; both satisfy the same
+        # call signature.
+        self.epistemic_access: Union[
+            LearnableAccessibility, FixedAccessibility
+        ]
         if learnable_epistemic:
             self.epistemic_access = LearnableAccessibility(
                 num_agents,
@@ -326,8 +331,8 @@ class MultiAgentKripke(nn.Module):
             ``(num_agents, num_agents)`` matrix in [0, 1].
         """
         if isinstance(self.epistemic_access, MetricAccessibility):
-            return self.epistemic_access(features)
-        return self.epistemic_access()
+            return cast(Tensor, self.epistemic_access(features))
+        return cast(Tensor, self.epistemic_access())
 
     def get_full_accessibility(
         self, features: Optional[Tensor] = None
@@ -366,7 +371,7 @@ class MultiAgentKripke(nn.Module):
             ``(num_agents, 2)`` bounds for K(ϕ).
         """
         A_epi = self.get_epistemic_accessibility(features)
-        return self.box(prop_bounds, A_epi)
+        return cast(Tensor, self.box(prop_bounds, A_epi))
 
     def G(self, prop_bounds: Tensor) -> Tensor:
         """Temporal globally operator.
@@ -377,7 +382,7 @@ class MultiAgentKripke(nn.Module):
         Returns:
             ``(num_states, 2)`` bounds for G(ϕ).
         """
-        return self.box(prop_bounds, self.A_temporal)
+        return cast(Tensor, self.box(prop_bounds, self.A_temporal))
 
     def F(self, prop_bounds: Tensor) -> Tensor:
         """Temporal finally operator.
@@ -388,7 +393,7 @@ class MultiAgentKripke(nn.Module):
         Returns:
             ``(num_states, 2)`` bounds for F(ϕ).
         """
-        return self.diamond(prop_bounds, self.A_temporal)
+        return cast(Tensor, self.diamond(prop_bounds, self.A_temporal))
 
     def K_G(
         self,
@@ -424,7 +429,7 @@ class MultiAgentKripke(nn.Module):
         """
         g_bounds = self.G(prop_bounds)
         A_full = self.get_full_accessibility(features)
-        return self.box(g_bounds, A_full)
+        return cast(Tensor, self.box(g_bounds, A_full))
 
     def K_F(
         self,
@@ -453,7 +458,7 @@ class MultiAgentKripke(nn.Module):
         """
         f_bounds = self.F(prop_bounds)
         A_full = self.get_full_accessibility(features)
-        return self.box(f_bounds, A_full)
+        return cast(Tensor, self.box(f_bounds, A_full))
 
     def forward(
         self,

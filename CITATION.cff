@@ -6,9 +6,11 @@ authors:
   - family-names: Sulc
     given-names: Antonin
     affiliation: "Lawrence Berkeley National Laboratory"
+    orcid: "https://orcid.org/0000-0001-7767-778X"
   - family-names: Naddour
     given-names: Noor
     affiliation: "The University of Queensland"
+doi: "10.5281/zenodo.22825059"
 repository-code: "https://github.com/sulcantonin/torchmodal"
 url: "https://github.com/sulcantonin/torchmodal"
 license: MIT
@@ -29,6 +31,7 @@ preferred-citation:
     - family-names: Sulc
       given-names: Antonin
       affiliation: "Lawrence Berkeley National Laboratory"
+      orcid: "https://orcid.org/0000-0001-7767-778X"
     - family-names: Naddour
       given-names: Noor
       affiliation: "The University of Queensland"

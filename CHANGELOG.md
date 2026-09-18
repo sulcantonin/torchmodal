@@ -6,7 +6,83 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-09-18
+
+Project health, aimed at what a reviewer checks first. No public API change.
+
+### Changed
+
+- **`mypy` is clean: 32 errors to 0, and CI no longer suppresses the gate.**
+  The `mypy` step ran with `|| true`, so the job was green regardless — a
+  suppressed gate reads as a smell even when the errors are benign, and it
+  meant nothing was actually being checked.
+
+  The errors were almost all the standard PyTorch typing friction:
+  `nn.Module.__call__` is typed as returning `Any`, and attribute access on a
+  registered buffer widens to `Union[Tensor, Module]`. Fixed by declaring
+  buffer types at class level, annotating optional submodules before the
+  branch that assigns them, giving `KripkeModel` a typed accessor for its
+  `ModuleDict`, and casting where the torch stubs are genuinely lossy — not by
+  adding blanket ignores. `warn_unused_ignores`, `warn_redundant_casts` and
+  `no_implicit_reexport` are now on, so a stale suppression becomes an error
+  rather than debt.
+
+### Added
+
+- **Coverage in CI, published.** `pytest-cov` was already a dev dependency and
+  unused. Coverage now runs on every job, is written to the workflow summary,
+  and is uploaded to Codecov with a README badge. Current: **88%** line
+  coverage, 1586 statements.
+
+- **Every example is smoke-tested in CI** (`scripts/run_examples.py`). All 16
+  scripts run, not a chosen subset — an example that cannot be run in CI is
+  one that will break without anyone noticing. A script that exits 0 but
+  prints nothing counts as a failure, since each is meant to demonstrate a
+  result. Full run is about four minutes in smoke mode.
+
+  The runner **restores committed artefacts afterwards**. Several benchmarks
+  write into `examples/coloring_results/`, `examples/sudoku_results/` and
+  `examples/coloring_solve.json`, which are tracked and hold *full*-mode
+  results (10 graphs per tier, 5 seeds, 2000 epochs); a smoke run would
+  quietly overwrite them with far weaker numbers. This was found by doing
+  exactly that during development.
+
+- **Notebooks execute in CI** (`scripts/run_notebooks.py`). They carry Colab
+  badges, so a reader's first contact with the library may be running one.
+
+- **`SUPPORT.md` and issue templates** — bug report, feature request and
+  question forms, with a config that points at the API reference and the
+  limitations page. The bug template asks for the torch version and the
+  evaluation mode, because several documented behaviours differ between torch
+  2.8 and 2.14 and between `soft` and `exact`.
+
+- **ORCID for Antonin Sulc** (`0000-0001-7767-778X`) in both the software and
+  paper entries of `CITATION.cff`.
+
+- The **Zenodo DOI** badge and citation metadata, which had been written on a
+  branch whose pull request was already merged and so never reached `main`:
+  concept DOI `10.5281/zenodo.22825059`.
+
+### Fixed
+
+- **`examples/regen_coloring_figs.py` had a hardcoded absolute path** to one
+  machine's home directory (`/Users/asulc/PycharmProjects/...`), so it raised
+  `PermissionError` for every other user — including any reviewer who ran it.
+  The output directory now defaults to `examples/figures/` inside the checkout
+  and is overridable with `MLNN_FIG_DIR`. Found by smoke-testing the examples,
+  which is the point of doing so.
+
+
 ## [0.7.0] — 2026-09-18
+
+### Added
+
+- **A Zenodo DOI.** The GitHub–Zenodo integration is live and archived
+  `v0.6.0`: concept DOI `10.5281/zenodo.22825059` (always resolves to the
+  latest release) and version DOI `10.5281/zenodo.22825060`. Zenodo read the
+  title, both authors and the licence from `CITATION.cff` rather than falling
+  back to the repository description. Badge added to the README, and the
+  concept DOI added to `CITATION.cff`'s software entry.
 
 ### Removed — **breaking**
 
