@@ -1,0 +1,31 @@
+name: Feature request
+description: Propose a new operator, diagnostic or capability.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every bound-producing function in this library states which crisp
+        operator it bounds, in which direction, and what the gap is. A proposal
+        for a new operator is much easier to act on if it says what that
+        statement would be.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What can't you express today
+      description: The modelling problem, not the proposed API.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed shape
+      description: Rough signature or usage.
+      render: python
+  - type: textarea
+    id: soundness
+    attributes:
+      label: What would it bound, and how loosely
+      description: >
+        For a new operator: which crisp operator, which direction, and what the
+        gap would be. "Not sure yet" is a fine answer.

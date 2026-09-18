@@ -4,6 +4,7 @@ written directly into the paper's image directory.
 """
 import json
 import sys
+import os
 from pathlib import Path
 
 import numpy as np
@@ -29,7 +30,13 @@ import graph_coloring_benchmark as gc  # noqa: E402
 gc.MLNN_EPOCHS = 600
 gc.MLNN_SEEDS = 1
 
-PAPER_I = Path("/Users/asulc/PycharmProjects/mlnn/paper/i")
+# Output directory. Defaults to a folder inside this checkout so the script
+# runs for anyone; set MLNN_FIG_DIR to write the figures straight into a paper
+# tree instead. It previously pointed at one machine's home directory, which
+# made the script unrunnable for every other user.
+PAPER_I = Path(
+    os.environ.get("MLNN_FIG_DIR", Path(__file__).resolve().parent / "figures")
+)
 PAPER_I.mkdir(parents=True, exist_ok=True)
 # Seaborn-deep-style palette: distinguishable and easy on the eye.
 PALETTE = np.array([[0.298, 0.447, 0.690],    # blue

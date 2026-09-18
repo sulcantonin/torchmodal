@@ -1,0 +1,22 @@
+name: Question
+description: How do I model this, or why does this behave that way?
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Several behaviours look like bugs and are documented traps — a
+        `contradiction` that is exactly zero, a greatest fixpoint that
+        collapses, an `until` that ignores its relation. Worth checking
+        [Limitations](https://sulcantonin.github.io/torchmodal/limitations/) first.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you tried
+      render: python

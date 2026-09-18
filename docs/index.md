@@ -142,13 +142,5 @@ dataset of Kripke models needs no Python loop. Results are bit-identical to loop
 pip install torchmodal
 ```
 
-Or from a checkout, which is recommended while a release is pending since
-features land there first:
-
-```bash
-pip install -e .
-```
-
-See the [API reference](api/functional.md) for every operator, the
-[limitations](https://github.com/sulcantonin/torchmodal/blob/main/limitations.md) for the measured caveats, and
-[examples](https://github.com/sulcantonin/torchmodal/blob/main/examples.md) for runnable scripts and notebooks.
+See the [API reference](api/functional.md), the [limitations](https://github.com/sulcantonin/torchmodal/blob/main/limitations.md)
+for the measured caveats, and [examples](https://github.com/sulcantonin/torchmodal/blob/main/examples.md).

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import math
 import warnings
+from typing import cast
 
 import torch
 from torch import Tensor
@@ -244,7 +245,7 @@ def negation(x: Tensor) -> Tensor:
     Returns:
         Negated truth values.
     """
-    return 1.0 - x
+    return cast(Tensor, 1.0 - x)
 
 
 def conjunction(a: Tensor, b: Tensor) -> Tensor:

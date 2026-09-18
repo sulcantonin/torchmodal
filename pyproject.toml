@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "torchmodal"
-version = "0.7.0"
+version = "0.8.0"
 description = "Differentiable modal logic for PyTorch: sound interval bounds and a learnable Kripke accessibility relation (Modal Logic Neural Networks)"
 readme = "README.md"
 license = "MIT"
@@ -87,6 +87,29 @@ select = ["E", "F", "I", "W"]
 python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
+# The package type-checks clean as of 0.8.0. These keep it that way: a new
+# ignore has to be justified, and a stale one is an error rather than debt.
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_reexport = true
+
+[[tool.mypy.overrides]]
+# torch ships partial stubs; its untyped internals are not ours to annotate.
+module = ["torch.*"]
+follow_imports = "skip"
+
+[tool.coverage.run]
+source = ["torchmodal"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

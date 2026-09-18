@@ -39,7 +39,7 @@ about the sparsified frame.
 from __future__ import annotations
 
 import warnings
-from typing import Optional
+from typing import Optional, cast
 
 import torch
 import torch.nn as nn
@@ -142,6 +142,11 @@ class FixedAccessibility(nn.Module):
         >>> A = access()  # (81, 81) binary matrix
     """
 
+    #: Declared so mypy knows the registered buffer is a Tensor;
+    #: ``nn.Module.__getattr__`` otherwise widens it to
+    #: ``Union[Tensor, Module]`` and every use has to be narrowed.
+    relation: Tensor
+
     def __init__(
         self,
         relation: Tensor,
@@ -156,7 +161,7 @@ class FixedAccessibility(nn.Module):
 
     @property
     def num_worlds(self) -> int:
-        return self.relation.shape[0]
+        return int(self.relation.shape[0])
 
     def forward(self) -> Tensor:
         """Returns the accessibility matrix ``(|W|, |W|)``."""
@@ -309,6 +314,10 @@ class MetricAccessibility(nn.Module):
             _warn_top_k_deprecated(self)
         self.sparsify = sparsify
 
+        # Exactly one of these is populated; annotate before the branch so
+        # each is declared once.
+        self.encoder: Optional[nn.Sequential]
+        self.embeddings: Optional[nn.Parameter]
         if input_dim is not None:
             # Encoder from external features
             self.encoder = nn.Sequential(
@@ -451,7 +460,7 @@ class AttentionAccessibility(nn.Module):
         if self.sparsify is not None:
             A = top_k_mask(A, self.sparsify)
 
-        return A
+        return cast(Tensor, A)
 
     def extra_repr(self) -> str:
         return (

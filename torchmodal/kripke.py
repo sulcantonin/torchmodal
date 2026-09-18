@@ -15,7 +15,7 @@ that manages worlds, propositions, accessibility, and formula evaluation.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, cast
 
 import torch
 import torch.nn as nn
@@ -67,6 +67,8 @@ class Proposition(nn.Module):
 
         bounds = torch.full((num_worlds, 2), init)
 
+        self._bounds: Tensor
+        self._logits: Optional[nn.Parameter]
         if learnable:
             # Store as logits, apply sigmoid for [0,1] guarantee
             self._logits = nn.Parameter(torch.zeros(num_worlds, 2))
@@ -257,12 +259,17 @@ class KripkeModel(nn.Module):
         return prop
 
     def get_proposition(self, name: str) -> Proposition:
-        """Retrieve a proposition by name."""
-        return self.propositions[name]
+        """Retrieve a proposition by name.
+
+        ``nn.ModuleDict`` is typed as returning a bare ``Module``, so the
+        cast records what the container actually holds — every entry is put
+        there by :meth:`add_proposition`.
+        """
+        return cast(Proposition, self.propositions[name])
 
     def get_bounds(self, name: str) -> Tensor:
         """Return truth bounds for proposition ``name``. Shape ``(|W|, 2)``."""
-        return self.propositions[name].bounds
+        return self.get_proposition(name).bounds
 
     def get_accessibility(
         self, features: Optional[Tensor] = None
@@ -279,8 +286,8 @@ class KripkeModel(nn.Module):
         if isinstance(
             self.accessibility, (MetricAccessibility, AttentionAccessibility)
         ):
-            return self.accessibility(features)
-        return self.accessibility()
+            return cast(Tensor, self.accessibility(features))
+        return cast(Tensor, self.accessibility())
 
     def necessity(
         self,
@@ -300,7 +307,7 @@ class KripkeModel(nn.Module):
         if accessibility is None:
             accessibility = self.get_accessibility()
         prop = self.propositions[prop_name]
-        return self.box(prop.bounds, accessibility)
+        return cast(Tensor, self.box(prop.bounds, accessibility))
 
     def possibility(
         self,
@@ -320,7 +327,7 @@ class KripkeModel(nn.Module):
         if accessibility is None:
             accessibility = self.get_accessibility()
         prop = self.propositions[prop_name]
-        return self.diamond(prop.bounds, accessibility)
+        return cast(Tensor, self.diamond(prop.bounds, accessibility))
 
     def contradiction_loss(self) -> Tensor:
         """Compute the total contradiction loss across all propositions.
@@ -333,13 +340,16 @@ class KripkeModel(nn.Module):
             Scalar contradiction loss.
         """
         total = torch.tensor(0.0, device=self._get_device())
-        for prop in self.propositions.values():
-            total = total + F.contradiction(prop.bounds)
+        for name in self.propositions:
+            total = total + F.contradiction(self.get_proposition(name).bounds)
         return total
 
     def all_bounds(self) -> Dict[str, Tensor]:
         """Return a dict mapping proposition names to their bounds."""
-        return {name: p.bounds for name, p in self.propositions.items()}
+        return {
+            name: self.get_proposition(name).bounds
+            for name in self.propositions
+        }
 
     def _get_device(self) -> torch.device:
         """Infer the device from model parameters."""

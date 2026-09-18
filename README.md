@@ -5,6 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/pypi/pyversions/torchmodal)](https://pypi.org/project/torchmodal/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22825059.svg)](https://doi.org/10.5281/zenodo.22825059)
+[![codecov](https://codecov.io/gh/sulcantonin/torchmodal/branch/main/graph/badge.svg)](https://codecov.io/gh/sulcantonin/torchmodal)
 
 **Differentiable Modal Logic for PyTorch**
 
@@ -465,6 +466,15 @@ test in [`tests/test_traps.py`](tests/test_traps.py) so it cannot silently chang
 
 - **`until` and `until_graph` are not batched.** The modal operators are; these two still
   take one model at a time.
+
+## Support
+
+Questions, bugs and feature requests all go to
+[issues](https://github.com/sulcantonin/torchmodal/issues); see
+[SUPPORT.md](SUPPORT.md) for what makes a report actionable. If a constraint
+"has no effect", run `torchmodal.diagnostics.gradient_health` on it first —
+that is usually the whole diagnosis. Several behaviours that look like bugs
+are documented traps, listed under [Limitations](#limitations).
 
 ## Citation
 

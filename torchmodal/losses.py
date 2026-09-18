@@ -14,6 +14,8 @@ logical consistency:
 
 from __future__ import annotations
 
+from typing import cast
+
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -179,7 +181,7 @@ class SparsityLoss(nn.Module):
             vals = accessibility * mask
         else:
             vals = accessibility
-        return self.lambda_sparse * vals.abs().mean()
+        return cast(Tensor, self.lambda_sparse * vals.abs().mean())
 
     def extra_repr(self) -> str:
         return (
@@ -225,8 +227,8 @@ class CrystallizationLoss(nn.Module):
         entropy = -(p * p.log() + (1.0 - p) * (1.0 - p).log())
 
         if self.reduction == "sum":
-            return entropy.sum()
-        return entropy.mean()
+            return cast(Tensor, entropy.sum())
+        return cast(Tensor, entropy.mean())
 
 
 class AxiomRegularization(nn.Module):

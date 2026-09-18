@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: API reference
+    url: https://sulcantonin.github.io/torchmodal/
+    about: Every operator states what it bounds, in which direction, and the gap.
+  - name: Known limitations
+    url: https://sulcantonin.github.io/torchmodal/limitations/
+    about: Several behaviours look like bugs and are documented traps. Check here first.

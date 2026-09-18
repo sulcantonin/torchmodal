@@ -11,7 +11,7 @@ and visualization utilities.
 from __future__ import annotations
 
 import math
-from typing import Tuple
+from typing import Tuple, cast
 
 import torch
 from torch import Tensor
@@ -141,7 +141,7 @@ def build_sudoku_accessibility(
     not_self = ~torch.eye(total, dtype=torch.bool, device=device)
 
     A = ((same_row | same_col | same_block) & not_self).float()
-    return A
+    return cast(Tensor, A)
 
 
 def build_grid_accessibility(
