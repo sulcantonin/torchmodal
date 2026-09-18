@@ -6,6 +6,41 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-09-18
+
+### Removed — **breaking**
+
+- **`functional.until`'s `tau` argument is gone.** Passing it now raises
+  `TypeError`; the migration is to delete it from the call.
+
+  It never had any effect — the backward DP contains no smooth aggregation, so
+  no temperature enters it — and it has emitted a `DeprecationWarning` since
+  0.2.2. The notice named 0.4.0 as the removal version and we reached 0.6.0
+  without acting, which left the library shipping a deprecation notice that
+  was itself wrong. Removing the argument is the smaller error: a no-op
+  parameter that *looks* like it controls the operator is exactly the kind of
+  misleading surface this library exists to avoid.
+
+  No caller in this repository passed it except the trap tests that pinned the
+  deprecation, which are updated to pin the removal instead. If you want a
+  temperature-controlled, relation-aware Until, that is `until_graph`.
+
+### Added
+
+- **SMV round-trip tests.** The exporter's structural checks could not catch
+  the failure that matters most — well-formed SMV describing the *wrong*
+  transition relation. The new tests parse the generated module back into a
+  relation and a label set, and assert both reconstruct the input exactly;
+  one goes further and re-runs `EF` on the reconstructed frame, requiring the
+  same answer.
+
+  This is still **not** a nuXmv round trip. No checker is installable here —
+  neither nuXmv nor NuSMV is available through a package manager, and nuXmv
+  requires registration and licence acceptance — so the gap noted in 0.6.0
+  stands. What these tests remove is the exporter-correctness half of the
+  risk; the semantics half still needs an external checker.
+
+
 ## [0.6.0] — 2026-09-18
 
 Abstract inputs and certificates: the point at which "soundness is a property
