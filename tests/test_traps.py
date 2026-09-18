@@ -75,26 +75,24 @@ class TestUntilIsInert:
         assert out.grad_fn is None
         assert not out.requires_grad
 
-    def test_identical_for_any_tau(self):
-        phi, psi = _until_fixture()
-        A = _chain()
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            assert torch.equal(
-                F.until(phi, psi, A, tau=0.1),
-                F.until(phi, psi, A, tau=10.0),
-            )
+    def test_tau_is_no_longer_accepted(self):
+        """Removed in 0.7.0 after four releases of deprecation.
 
-    def test_passing_tau_warns(self):
+        It never had any effect — the backward DP contains no smooth
+        aggregation — so the only migration is to delete the argument.
+        """
         phi, psi = _until_fixture()
-        with pytest.warns(DeprecationWarning, match="unused"):
+        with pytest.raises(TypeError, match="tau"):
             F.until(phi, psi, _chain(), tau=0.1)
 
-    def test_omitting_tau_does_not_warn(self):
+    def test_the_operator_still_works_without_it(self):
         phi, psi = _until_fixture()
         with warnings.catch_warnings():
-            warnings.simplefilter("error", DeprecationWarning)
-            F.until(phi, psi, _chain())
+            warnings.simplefilter("error")
+            out = F.until(phi, psi, _chain())
+        assert torch.allclose(
+            out[:, 0], torch.tensor([0.5, 0.6, 0.7, 0.8, 0.9, 1.0]), atol=1e-6
+        )
 
     def test_lukasiewicz_sweep_floors_the_lower_bound(self):
         """The documented decay: 1 - L_phi is lost per step.

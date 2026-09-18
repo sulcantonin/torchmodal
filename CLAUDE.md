@@ -177,7 +177,7 @@ torchmodal/
 │   ├── MLNN_AccesbilityScalabilityAblation.ipynb  # dense-vs-metric sweep, N=20→20k
 │   └── ...                   # Additional examples
 ├── CLAUDE.md                 # ← you are here
-├── CHANGELOG.md              # Release history (current: 0.6.0)
+├── CHANGELOG.md              # Release history (current: 0.7.0)
 ├── README.md
 ├── LICENSE
 └── pyproject.toml

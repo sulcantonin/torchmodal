@@ -305,24 +305,6 @@ def implication(a: Tensor, b: Tensor) -> Tensor:
 # ---------------------------------------------------------------------------
 
 
-class _UnsetTau(float):
-    """Sentinel for a ``tau`` the caller did not pass.
-
-    Subclasses :class:`float` and carries the historical default value, so
-    the signature still type-checks as ``float``, ``inspect.signature``
-    still reports ``0.1``, and any code that reads the value is unchanged.
-    Only identity (``tau is not _UNSET_TAU``) distinguishes "not passed"
-    from an explicit ``tau=0.1``, which is what the deprecation warning
-    keys on.
-    """
-
-    def __repr__(self) -> str:  # pragma: no cover - cosmetic
-        return "0.1"
-
-
-_UNSET_TAU = _UnsetTau(0.1)
-
-
 def _as_bounds(
     prop_bounds: Tensor, accessibility: Tensor
 ) -> tuple[Tensor, bool]:
@@ -1088,7 +1070,6 @@ def until(
     phi_bounds: Tensor,
     psi_bounds: Tensor,
     accessibility: Tensor,
-    tau: float = _UNSET_TAU,
 ) -> Tensor:
     r"""Until (U) operator — differentiable temporal semantics.
 
@@ -1142,25 +1123,18 @@ def until(
             aggregation over ``accessibility`` takes place, so there is no
             ``top_k`` parameter here (see :func:`necessity` /
             :func:`possibility`).
-        tau: **Deprecated and unused.** The DP formulation has no smooth
-            aggregation, so no temperature enters it; passing this
-            argument raises a :class:`DeprecationWarning`. Kept only for
-            API compatibility and scheduled for removal in 0.4.0.
+
+    .. note::
+       **The** ``tau`` **argument was removed in 0.7.0.** It never had any
+       effect — the backward DP contains no smooth aggregation, so no
+       temperature enters it — and it was deprecated from 0.2.2 onward.
+       Passing it now raises ``TypeError``; delete it from the call. If you
+       wanted a temperature-controlled, relation-aware Until, that is
+       :func:`until_graph`.
 
     Returns:
         Truth bounds for ``ϕ U ψ``, same shape as inputs.
     """
-    if tau is not _UNSET_TAU:
-        warnings.warn(
-            "torchmodal.functional.until's `tau` argument is unused: the "
-            "backward DP has no smooth aggregation, so the result is "
-            "identical for every value. It will be removed in 0.4.0. If "
-            "you wanted a temperature-controlled, relation-aware Until, "
-            "use until_graph.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
     point_valued = phi_bounds.dim() == 1
     if point_valued:
         phi_bounds = phi_bounds.unsqueeze(-1).expand(-1, 2)

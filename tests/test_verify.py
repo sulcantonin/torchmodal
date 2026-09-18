@@ -256,3 +256,73 @@ class TestRoundRelation:
     def test_preserves_dtype(self):
         A = torch.rand(4, 4, dtype=torch.float64)
         assert V.round_relation(A).dtype == torch.float64
+
+
+class TestSmvRoundTrip:
+    """Parse the generated SMV back and check it reconstructs the frame.
+
+    This is *not* a substitute for running nuXmv — no checker is bundled, and
+    the module docstring says so. What it does rule out is the failure mode
+    that matters most in practice: an exporter that emits well-formed SMV
+    describing the **wrong** transition relation. A structural check on the
+    text cannot catch that; reconstructing the relation from the text and
+    comparing it to the input can.
+    """
+
+    @staticmethod
+    def _parse_transitions(smv: str, n: int) -> torch.Tensor:
+        """Recover the transition relation from a generated SMV module."""
+        A = torch.zeros(n, n)
+        for line in smv.splitlines():
+            m = re.match(r"\s*state = (\d+) : \{([0-9, ]+)\};", line)
+            if m:
+                src = int(m.group(1))
+                for dst in m.group(2).split(","):
+                    A[src, int(dst.strip())] = 1.0
+        return A
+
+    @staticmethod
+    def _parse_define(smv: str, name: str, n: int) -> torch.Tensor:
+        out = torch.zeros(n)
+        for line in smv.splitlines():
+            m = re.match(rf"\s*{name} := (.+);", line)
+            if m:
+                body = m.group(1)
+                if body.strip() == "FALSE":
+                    return out
+                for s in re.findall(r"state = (\d+)", body):
+                    out[int(s)] = 1.0
+        return out
+
+    def test_transitions_survive_the_round_trip(self):
+        torch.manual_seed(0)
+        for _ in range(40):
+            n = int(torch.randint(3, 8, (1,)).item())
+            A = F.serialize((torch.rand(n, n) > 0.6).float())
+            smv = V.to_smv(A, {})
+            assert torch.equal(self._parse_transitions(smv, n), A)
+
+    def test_labels_survive_the_round_trip(self):
+        torch.manual_seed(1)
+        for _ in range(20):
+            n = int(torch.randint(3, 7, (1,)).item())
+            A = F.serialize((torch.rand(n, n) > 0.6).float())
+            phi = (torch.rand(n) > 0.5).float()
+            smv = V.to_smv(A, {"phi": phi.tolist()})
+            assert torch.equal(self._parse_define(smv, "phi", n), phi)
+
+    def test_the_reconstructed_frame_gives_the_same_ctl_answer(self):
+        """The end-to-end property: export, parse back, re-check, agree."""
+        torch.manual_seed(2)
+        for _ in range(20):
+            n = int(torch.randint(3, 7, (1,)).item())
+            A = F.serialize((torch.rand(n, n) > 0.55).float())
+            phi = (torch.rand(n) > 0.5).float()
+            smv = V.to_smv(A, {"phi": phi.tolist()}, spec="EF phi")
+
+            A2 = self._parse_transitions(smv, n)
+            phi2 = self._parse_define(smv, "phi", n)
+
+            before = fp.ef(phi, A, mode="exact").bounds
+            after = fp.ef(phi2, A2, mode="exact").bounds
+            assert torch.equal(before, after)
