@@ -8,6 +8,15 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.7.0] — 2026-09-18
 
+### Added
+
+- **A Zenodo DOI.** The GitHub–Zenodo integration is live and archived
+  `v0.6.0`: concept DOI `10.5281/zenodo.22825059` (always resolves to the
+  latest release) and version DOI `10.5281/zenodo.22825060`. Zenodo read the
+  title, both authors and the licence from `CITATION.cff` rather than falling
+  back to the repository description. Badge added to the README, and the
+  concept DOI added to `CITATION.cff`'s software entry.
+
 ### Removed — **breaking**
 
 - **`functional.until`'s `tau` argument is gone.** Passing it now raises

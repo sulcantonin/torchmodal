@@ -4,6 +4,7 @@
 [![CI](https://github.com/sulcantonin/torchmodal/actions/workflows/ci.yml/badge.svg)](https://github.com/sulcantonin/torchmodal/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/pypi/pyversions/torchmodal)](https://pypi.org/project/torchmodal/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22825059.svg)](https://doi.org/10.5281/zenodo.22825059)
 
 **Differentiable Modal Logic for PyTorch**
 
@@ -483,6 +484,10 @@ If you use torchmodal in your research, please cite:
   note      = {Oral presentation. arXiv:2512.03491}
 }
 ```
+
+To cite **the software** rather than the paper, use the Zenodo concept DOI
+[`10.5281/zenodo.22825059`](https://doi.org/10.5281/zenodo.22825059), which always resolves to the latest
+release; each release also has its own version DOI.
 
 The proceedings version is the one to cite;
 [arXiv:2512.03491](https://arxiv.org/abs/2512.03491)
