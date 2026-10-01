@@ -514,8 +514,5 @@ MIT
 - [Antonin Sulc](https://sulcantonin.github.io) — Lawrence Berkeley National Laboratory
 - Noor Naddour — The University of Queensland
 
-Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and the
-[good first issues](https://github.com/sulcantonin/torchmodal/labels/good%20first%20issue).
-
 ## Media
 - Substack https://open.substack.com/pub/sulcantonin/p/the-architecture-of-trust-in-agents?r=2p2sn8&utm_campaign=post&utm_medium=web&showWelcomeOnShare=true
