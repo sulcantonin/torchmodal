@@ -32,13 +32,13 @@ pip install -e ".[dev]"
 ## Before opening a pull request
 
 ```bash
-pytest tests/                    # all tests must pass
-ruff check torchmodal/ tests/    # must be clean
-mypy torchmodal/                 # must not add new errors
+pytest tests/                            # all tests must pass
+ruff check torchmodal/ tests/ examples/  # must be clean
+mypy torchmodal/                         # must be clean
 ```
 
-Existing `mypy` findings in `kripke.py` and `systems.py` are known and tracked;
-please don't let a PR add to them, but you are not expected to fix them.
+`mypy` has been clean since 0.8.0 and CI gates on it; a new `# type: ignore`
+needs a comment saying why.
 
 ## Conventions
 

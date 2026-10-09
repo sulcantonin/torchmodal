@@ -10,6 +10,8 @@ authors:
   - family-names: Naddour
     given-names: Noor
     affiliation: "The University of Queensland"
+version: 0.9.0
+date-released: "2026-10-09"
 doi: "10.5281/zenodo.22825059"
 repository-code: "https://github.com/sulcantonin/torchmodal"
 url: "https://github.com/sulcantonin/torchmodal"

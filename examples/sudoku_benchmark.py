@@ -1,4 +1,4 @@
-"""
+r"""
 Sudoku Benchmark — MLNN (modal Pure-Satisfiability) vs a wide baseline matrix
 =============================================================================
 
@@ -37,6 +37,10 @@ import json
 import os
 import random
 import signal
+
+# Make sure the local development torchmodal (../torchmodal) shadows any
+# PyPI-installed release, which lacks newer APIs and fails silently.
+import sys
 import time
 from collections import Counter, OrderedDict
 from pathlib import Path
@@ -46,10 +50,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-# Make sure the local development torchmodal (../torchmodal) shadows any
-# PyPI-installed release, which lacks newer APIs and fails silently.
-import sys
-from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import torchmodal
@@ -368,7 +368,7 @@ def solve_pycosat(puzzle):
     sol = pycosat.solve(clauses)
     if sol in ("UNSAT", "UNKNOWN"):
         return None
-    truth = set(l for l in sol if l > 0)
+    truth = set(lit for lit in sol if lit > 0)
     g = np.zeros((N, N), dtype=int)
     for r in range(N):
         for c in range(N):
@@ -759,7 +759,8 @@ def _plot(results, snaps, demo_p):
         for ax, (ep, m) in zip(axes, snaps):
             im = ax.imshow(m, cmap="magma_r", vmin=0, vmax=vmax)
             ax.set_title(f"epoch {ep}\nΣ L_contra={m.sum():.2f}", fontsize=9)
-            ax.set_xticks([]); ax.set_yticks([])
+            ax.set_xticks([])
+            ax.set_yticks([])
             for s in (3, 6):
                 ax.axhline(s - 0.5, color="c", lw=0.6)
                 ax.axvline(s - 0.5, color="c", lw=0.6)

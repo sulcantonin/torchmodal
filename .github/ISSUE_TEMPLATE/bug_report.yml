@@ -29,7 +29,7 @@ body:
     attributes:
       label: Versions
       description: "`python -c \"import torch, torchmodal; print(torchmodal.__version__, torch.__version__)\"`"
-      placeholder: "0.8.0 2.14.0"
+      placeholder: "0.9.0 2.14.0"
     validations:
       required: true
   - type: dropdown

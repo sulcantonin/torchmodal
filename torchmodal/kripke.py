@@ -15,7 +15,8 @@ that manages worlds, propositions, accessibility, and formula evaluation.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Union, cast
+import warnings
+from typing import Dict, List, Mapping, Optional, Union, cast
 
 import torch
 import torch.nn as nn
@@ -35,6 +36,11 @@ __all__ = [
     "Proposition",
 ]
 
+#: Learnable propositions are parameterised as logits. ``init`` values are
+#: clamped into ``[_LOGIT_EPS, 1 - _LOGIT_EPS]`` so that ``init=0.0`` / ``1.0``
+#: do not produce infinite logits with zero gradient.
+_LOGIT_EPS = 1e-4
+
 
 class Proposition(nn.Module):
     """A named atomic proposition with truth bounds across worlds.
@@ -51,7 +57,9 @@ class Proposition(nn.Module):
             / satisfiability mode). If ``False``, they are buffers set
             externally. Default ``True``.
         init: Initial value for both L and U bounds. Default 0.5
-            (maximum uncertainty).
+            (maximum uncertainty). For a learnable proposition the value is
+            clamped to ``[1e-4, 1 - 1e-4]``: exactly 0 or 1 would set the
+            logits to ±inf and leave the proposition with no gradient.
     """
 
     def __init__(
@@ -70,11 +78,16 @@ class Proposition(nn.Module):
         self._bounds: Tensor
         self._logits: Optional[nn.Parameter]
         if learnable:
-            # Store as logits, apply sigmoid for [0,1] guarantee
+            # Store as logits, apply sigmoid for [0,1] guarantee. An ``init``
+            # of exactly 0 or 1 has logit ±inf, which sigmoid maps back to the
+            # requested value but with a gradient of exactly 0 forever — the
+            # proposition would be silently untrainable. Clamp to the nearest
+            # value that still carries gradient (sigmoid'(±9.2) ≈ 1e-4, which
+            # an adaptive optimiser such as Adam turns into a usable step).
             self._logits = nn.Parameter(torch.zeros(num_worlds, 2))
+            init_c = min(max(float(init), _LOGIT_EPS), 1.0 - _LOGIT_EPS)
             with torch.no_grad():
-                # Initialize logits to match desired init value
-                self._logits.fill_(torch.logit(torch.tensor(init)).item())
+                self._logits.fill_(torch.logit(torch.tensor(init_c)).item())
         else:
             self.register_buffer("_bounds", bounds)
             self._logits = None
@@ -85,7 +98,14 @@ class Proposition(nn.Module):
 
     @property
     def bounds(self) -> Tensor:
-        """Truth bounds ``(|W|, 2)`` with ``[L, U]`` per world."""
+        """Truth bounds ``(|W|, 2)`` with ``[L, U]`` per world.
+
+        For a learnable proposition the two sigmoid outputs are sorted into
+        ``(min, max)``, so ``L <= U`` holds by construction and the pair is
+        never contradictory on its own. Contradictions arise only against
+        bounds *derived* for the proposition by inference — see
+        :meth:`KripkeModel.contradiction_loss`.
+        """
         if self._logits is not None:
             raw = torch.sigmoid(self._logits)
             # Ensure L <= U
@@ -183,7 +203,8 @@ class KripkeModel(nn.Module):
         num_worlds: Number of possible worlds |W|.
         accessibility: Accessibility relation module. One of
             :class:`FixedAccessibility`, :class:`LearnableAccessibility`,
-            or :class:`MetricAccessibility`.
+            :class:`MetricAccessibility` or :class:`AttentionAccessibility`
+            (the last two take ``features`` in :meth:`get_accessibility`).
         tau: Temperature for modal operators. Default 0.1.
         world_names: Optional list of human-readable world names.
         top_k: Top-k aggregation for the model's □ / ♢ operators (see
@@ -207,7 +228,10 @@ class KripkeModel(nn.Module):
         self,
         num_worlds: int,
         accessibility: Union[
-            FixedAccessibility, LearnableAccessibility, MetricAccessibility
+            FixedAccessibility,
+            LearnableAccessibility,
+            MetricAccessibility,
+            AttentionAccessibility,
         ],
         tau: float = 0.1,
         world_names: Optional[List[str]] = None,
@@ -222,8 +246,11 @@ class KripkeModel(nn.Module):
         self.diamond = Possibility(tau=tau, top_k=top_k)
         self.propositions = nn.ModuleDict()
 
-        if world_names is not None:
-            assert len(world_names) == num_worlds
+        if world_names is not None and len(world_names) != num_worlds:
+            raise ValueError(
+                f"world_names has {len(world_names)} entries for "
+                f"{num_worlds} worlds"
+            )
         self.world_names = world_names or [
             f"w{i}" for i in range(num_worlds)
         ]
@@ -329,19 +356,84 @@ class KripkeModel(nn.Module):
         prop = self.propositions[prop_name]
         return cast(Tensor, self.diamond(prop.bounds, accessibility))
 
-    def contradiction_loss(self) -> Tensor:
-        """Compute the total contradiction loss across all propositions.
+    def contradiction_loss(
+        self, derived: Optional[Mapping[str, Tensor]] = None
+    ) -> Tensor:
+        r"""Contradiction loss between asserted and derived bounds.
 
         .. math::
-            \\mathcal{L}_{\\text{contra}} =
-                \\sum_{w \\in W} \\sum_\\phi \\max(0,\\; L_{\\phi,w} - U_{\\phi,w})
+            \mathcal{L}_{\text{contra}} =
+                \sum_{w \in W} \sum_\phi \max(0,\; L_{\phi,w} - U_{\phi,w})
+
+        **Where a contradiction can come from.** A proposition's own bounds
+        are never contradictory on their own: a *learnable* proposition
+        stores a sigmoid pair sorted into ``(min, max)`` (see
+        :attr:`Proposition.bounds`), so ``L <= U`` by construction, and a
+        non-learnable one holds whatever was set. The contradiction that the
+        MLNN objective is about arises, as in LNN, when a proposition's
+        *asserted* interval meets an interval *derived* for the same
+        proposition by inference — ``□safe`` evaluated on a reflexive frame
+        bounds ``safe`` itself, an axiom tightens it from above, a sibling
+        formula tightens it from below — and the two cannot both hold.
+
+        Pass those derived intervals as ``derived``: for each name the
+        asserted and derived intervals are intersected,
+        ``L = max(L_asserted, L_derived)``, ``U = min(U_asserted, U_derived)``,
+        and ``relu(L - U)`` is summed. This is differentiable in both the
+        proposition and whatever produced the derived bounds (typically the
+        accessibility relation), so it trains either learning mode.
+
+        Without ``derived`` the method sums the raw contradiction of each
+        proposition's own bounds, which is identically zero on a model whose
+        propositions are all learnable. Up to 0.8.0 that silent zero was the
+        only behaviour; it now emits a ``UserWarning`` in that case so a
+        training loop cannot build on a loss that never moves.
+
+        Args:
+            derived: Optional mapping from proposition name to ``(|W|, 2)``
+                bounds derived for it — for example the output of
+                :meth:`necessity` on a reflexive frame, or the tightened
+                bounds from :func:`torchmodal.inference.upward_downward`.
+                Names not in the model raise ``KeyError``.
 
         Returns:
             Scalar contradiction loss.
+
+        Example::
+
+            >>> A = model.get_accessibility()
+            >>> # On a reflexive frame, □safe must not exceed safe.
+            >>> loss = model.contradiction_loss(
+            ...     {"safe": model.necessity("safe", A)}
+            ... )
         """
         total = torch.tensor(0.0, device=self._get_device())
-        for name in self.propositions:
-            total = total + F.contradiction(self.get_proposition(name).bounds)
+        if derived is None:
+            if self.propositions and all(
+                self.get_proposition(n)._logits is not None
+                for n in self.propositions
+            ):
+                warnings.warn(
+                    "KripkeModel.contradiction_loss() was called without "
+                    "`derived` bounds on a model whose propositions are all "
+                    "learnable. Learnable bounds are sorted so L <= U always "
+                    "holds and this loss is identically zero. Pass the bounds "
+                    "derived by inference, e.g. "
+                    "model.contradiction_loss({'p': model.necessity('p', A)}).",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            for name in self.propositions:
+                total = total + F.contradiction(
+                    self.get_proposition(name).bounds
+                )
+            return total
+
+        for name, d in derived.items():
+            asserted = self.get_bounds(name)
+            L = torch.max(asserted[..., 0], d[..., 0])
+            U = torch.min(asserted[..., 1], d[..., 1])
+            total = total + F.contradiction(L, U)
         return total
 
     def all_bounds(self) -> Dict[str, Tensor]:

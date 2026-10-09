@@ -61,7 +61,19 @@ __all__ = [
     "box_width_entropy",
     # Contradiction
     "contradiction",
+    # Numerical floor for annealed temperatures
+    "TAU_MIN",
 ]
+
+#: Floor applied to every annealed temperature schedule in the library
+#: (:func:`until_graph`, :mod:`torchmodal.fixpoint`,
+#: :mod:`torchmodal.epistemic`). A geometric schedule ``tau · rho^k`` with no
+#: floor underflows: in float32 ``x / tau`` overflows to ``inf`` once ``tau``
+#: drops below roughly 1e-38 and the log-sum-exp aggregators return NaN —
+#: ``common_knowledge(max_depth=160)`` did exactly that in 0.8.0. At 1e-6 the
+#: smooth aggregators are within ``1e-6 · log n`` of the hard extremum, so the
+#: floor costs nothing measurable.
+TAU_MIN: float = 1e-6
 
 # ---------------------------------------------------------------------------
 # Differentiable aggregations (Section 3.2.1 of the paper)
@@ -73,7 +85,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-def smooth_min(x: Tensor, tau: float = 0.1, dim: int = -1) -> Tensor:
+def smooth_min(x: Tensor, tau: float | Tensor = 0.1, dim: int = -1) -> Tensor:
     r"""Differentiable smooth minimum (log-sum-exp lower bound).
 
     .. math::
@@ -92,7 +104,10 @@ def smooth_min(x: Tensor, tau: float = 0.1, dim: int = -1) -> Tensor:
 
     Args:
         x: Input tensor of truth values in [0, 1].
-        tau: Temperature controlling approximation sharpness. Default 0.1.
+        tau: Temperature controlling approximation sharpness. A Python float
+            or a 0-d tensor; a tensor that requires grad makes the result
+            differentiable in ``tau`` (this is how ``learnable_tau`` on the
+            :mod:`torchmodal.nn` modules works). Default 0.1.
         dim: Dimension along which to aggregate. Default -1.
 
     Returns:
@@ -101,7 +116,7 @@ def smooth_min(x: Tensor, tau: float = 0.1, dim: int = -1) -> Tensor:
     return -tau * torch.logsumexp(-x / tau, dim=dim)
 
 
-def smooth_max(x: Tensor, tau: float = 0.1, dim: int = -1) -> Tensor:
+def smooth_max(x: Tensor, tau: float | Tensor = 0.1, dim: int = -1) -> Tensor:
     r"""Differentiable smooth maximum (log-sum-exp upper bound).
 
     .. math::
@@ -120,7 +135,8 @@ def smooth_max(x: Tensor, tau: float = 0.1, dim: int = -1) -> Tensor:
 
     Args:
         x: Input tensor of truth values in [0, 1].
-        tau: Temperature controlling approximation sharpness. Default 0.1.
+        tau: Temperature controlling approximation sharpness. A Python float
+            or a 0-d tensor (see :func:`smooth_min`). Default 0.1.
         dim: Dimension along which to aggregate. Default -1.
 
     Returns:
@@ -154,7 +170,7 @@ def softmax(x: Tensor, tau: float = 0.1, dim: int = -1) -> Tensor:
 
 
 def conv_pool(
-    x: Tensor, z: Tensor, tau: float = 0.1, dim: int = -1
+    x: Tensor, z: Tensor, tau: float | Tensor = 0.1, dim: int = -1
 ) -> Tensor:
     r"""Convex pooling operator (attention-weighted average).
 
@@ -221,7 +237,8 @@ def conv_pool(
             Use ``z = x`` for a lower bound on max, ``z = -x`` for an
             upper bound on min.
         tau: Temperature. Lower values sharpen the weighting toward the
-            extreme element. Default 0.1.
+            extreme element. A Python float or a 0-d tensor (see
+            :func:`smooth_min`). Default 0.1.
         dim: Dimension along which to pool. Default -1.
 
     Returns:
@@ -367,7 +384,7 @@ def _select_terms(x: Tensor, top_k: int | None, largest: bool) -> Tensor:
 def necessity(
     prop_bounds: Tensor,
     accessibility: Tensor,
-    tau: float = 0.1,
+    tau: float | Tensor = 0.1,
     top_k: int | None = None,
     precision: float | None = None,
     mode: str = "soft",
@@ -525,7 +542,7 @@ def necessity(
 def possibility(
     prop_bounds: Tensor,
     accessibility: Tensor,
-    tau: float = 0.1,
+    tau: float | Tensor = 0.1,
     top_k: int | None = None,
     precision: float | None = None,
     mode: str = "soft",
@@ -824,11 +841,11 @@ def _check_mode(mode: str) -> None:
 
 
 def _resolve_tau(
-    tau: float,
+    tau: float | Tensor,
     precision: float | None,
     accessibility: Tensor,
     top_k: int | None,
-) -> float:
+) -> float | Tensor:
     """Pick the temperature from either ``tau`` or ``precision``.
 
     ``precision`` is the inverse spelling of ``tau``: a caller states the
@@ -1182,6 +1199,7 @@ def until_graph(
     max_iter: int = 50,
     tol: float = 1e-6,
     quantifier: str = "diamond",
+    tau_min: float = TAU_MIN,
 ) -> Tensor:
     r"""Relation-aware Until — least fixpoint of ``U = ψ ∨ (φ ∧ ♢U)``.
 
@@ -1224,7 +1242,17 @@ def until_graph(
 
     independent of the number of iterations. Setting ``tau_decay=1.0``
     disables annealing and the gap grows linearly in the sweep count
-    instead.
+    instead. The annealed temperature is floored at ``tau_min`` (see
+    :data:`TAU_MIN`): below about 1e-38 a float32 ``x / tau`` overflows and
+    the aggregators return NaN, and at 1e-6 the smooth step is already within
+    ``1e-6 · log|W|`` of the hard one, so nothing is lost by stopping there.
+
+    **Monotonicity.** With a fixed temperature the iterate is monotone
+    non-decreasing on both endpoints (Kleene iteration of a monotone map
+    from ``ψ``). Under annealing the *upper* endpoint can also move down
+    between sweeps, because ``smooth_max`` shrinks as ``τ`` does; the lower
+    endpoint still only rises. The enclosure ``L <= crisp <= U`` holds at
+    every sweep either way.
 
     .. warning::
        ``quantifier="box"`` computes **AU** ("along *every* path") and is
@@ -1250,6 +1278,8 @@ def until_graph(
         quantifier: ``"diamond"`` for EU (default, sound on any frame) or
             ``"box"`` for AU (sound only on a serial frame — see the
             warning above).
+        tau_min: Floor for the annealed temperature. Default
+            :data:`TAU_MIN` (1e-6).
 
     Returns:
         Truth bounds for ``ϕ U ψ``, same shape as the inputs.
@@ -1311,7 +1341,7 @@ def until_graph(
         current = nxt
         if float(delta) < tol:
             break
-        tau_j *= tau_decay
+        tau_j = max(tau_j * tau_decay, tau_min)
 
     if point_valued:
         return current[:, 0]
@@ -1565,5 +1595,10 @@ def group_announce(
             "group_announce expects (|G|, |W|, |W|); use announce() for one relation"
         )
     t = torch.as_tensor(trust, dtype=accessibility.dtype, device=accessibility.device)
-    effective = recipients.to(accessibility.dtype) * t
+    r = recipients.to(accessibility.dtype)
+    # ``trust`` may be scalar, (|G|,) or (|G|, |W|); the recipient mask is
+    # always (|G|,), so align it on the agent axis before scaling.
+    while r.dim() < t.dim():
+        r = r.unsqueeze(-1)
+    effective = r * t
     return announce(accessibility, psi_bounds, trust=effective, tnorm=tnorm)

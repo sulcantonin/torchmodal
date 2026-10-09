@@ -18,6 +18,11 @@ class TestNecessityModule:
     def test_learnable_tau(self):
         box = nn.Necessity(tau=0.1, learnable_tau=True)
         assert any(p.requires_grad for p in box.parameters())
+        # ... and the parameter actually receives gradient (0.9.0; the module
+        # used to pass tau.item(), which detached it).
+        prop = torch.tensor([[0.8, 1.0], [0.2, 0.3]])
+        box(prop, torch.ones(2, 2)).sum().backward()
+        assert box.tau.grad is not None and box.tau.grad.abs() > 0
 
     def test_set_tau(self):
         """set_tau allows annealing from float (buffer cannot be assigned float)."""
@@ -201,8 +206,15 @@ class TestKripkeModel:
             accessibility=nn.FixedAccessibility(torch.eye(2)),
         )
         model.add_proposition("p", learnable=True)
-        loss = model.contradiction_loss()
-        assert loss.item() >= 0.0
+        # Learnable bounds are sorted, so the no-argument form is a zero that
+        # warns rather than a loss (0.9.0).
+        with pytest.warns(UserWarning, match="learnable"):
+            loss = model.contradiction_loss()
+        assert loss.item() == 0.0
+        # The derived form is the real objective.
+        A = model.get_accessibility()
+        loss = model.contradiction_loss({"p": model.necessity("p", A)})
+        assert loss.item() >= 0.0 and loss.requires_grad
 
     def test_with_attention_accessibility(self):
         """KripkeModel works with AttentionAccessibility."""

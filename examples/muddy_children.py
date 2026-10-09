@@ -96,7 +96,6 @@ def knows_own_state(agent: int, round_idx: int) -> torch.Tensor:
 def crisp_knows(agent: int, round_idx: int) -> int:
     """The textbook answer: 1 if the agent knows, computed exactly."""
     keep = surviving(round_idx)
-    here = WORLDS.index(ACTUAL)
     considered = [
         v
         for j, v in enumerate(WORLDS)

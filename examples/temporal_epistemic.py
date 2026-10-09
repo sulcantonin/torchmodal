@@ -14,18 +14,17 @@ Uses:
   - torchmodal.functional.necessity, possibility
 """
 
-import torch
-import torch.optim as optim
-import numpy as np
-
 # Make sure the local development torchmodal (../torchmodal) shadows any
 # PyPI-installed release, which lacks newer APIs and fails silently.
 import sys
 from pathlib import Path
+
+import torch
+import torch.optim as optim
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import torchmodal
-from torchmodal import functional as F
 
 
 def main():
@@ -129,7 +128,7 @@ def main():
 
     with torch.no_grad():
         A_epi = kripke.get_epistemic_accessibility()
-        print(f"\nLearned Epistemic Accessibility:")
+        print("\nLearned Epistemic Accessibility:")
         for i in range(NUM_AGENTS):
             row = [f"{A_epi[i,j]:.3f}" for j in range(NUM_AGENTS)]
             print(f"  Agent {i}: [{', '.join(row)}]")

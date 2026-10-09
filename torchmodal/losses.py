@@ -30,6 +30,14 @@ __all__ = [
 ]
 
 
+def _check_reduction(reduction: str) -> None:
+    """Argument validation that survives ``python -O`` (an ``assert`` does not)."""
+    if reduction not in ("sum", "mean", "none"):
+        raise ValueError(
+            f"reduction must be 'sum', 'mean' or 'none', got {reduction!r}"
+        )
+
+
 class ContradictionLoss(nn.Module):
     r"""Logical contradiction loss.
 
@@ -55,7 +63,7 @@ class ContradictionLoss(nn.Module):
         squared: bool = False,
     ) -> None:
         super().__init__()
-        assert reduction in ("sum", "mean", "none")
+        _check_reduction(reduction)
         self.reduction = reduction
         self.squared = squared
 
@@ -239,7 +247,8 @@ class AxiomRegularization(nn.Module):
 
     - **Axiom T** (Reflexivity): ``A[i,i] = 1`` for all *i*.
       System T: □ϕ → ϕ (knowledge is veridical).
-    - **Axiom 4** (Transitivity): ``A @ A ≤ A``.
+    - **Axiom 4** (Transitivity): ``max_j min(A[i,j], A[j,k]) ≤ A[i,k]``,
+      the max-min composition ``A ∘ A ≤ A``.
       System S4: □ϕ → □□ϕ (positive introspection).
     - **Axiom B** (Symmetry): ``A ≈ Aᵀ``.
       System B: ϕ → □♢ϕ (Brouwerian axiom).
@@ -264,6 +273,15 @@ class AxiomRegularization(nn.Module):
        who asks for "no dead ends" can get a relation that coordinates
        nothing. Pass ``serial_hollow=True`` (the default) to require a
        successor *other than the world itself*, which is what people mean.
+
+    .. note::
+       **Transitivity is the max-min composition**, not the matrix product.
+       Before 0.9.0 the penalty compared ``clamp(A @ A, 0, 1)`` with ``A``;
+       the sum over intermediate worlds overcounts, and on any reflexive
+       relation ``(A @ A)[i,k] >= 2·A[i,k]``, so every graded entry was
+       penalised whether or not the relation was transitive (a Gödel-
+       transitive relation scored 0.0625 instead of 0). The Euclidean term
+       already used Gödel ``min``; the two are now consistent.
 
     .. note::
        The seriality penalty uses a **hard** ``max``, not
@@ -325,11 +343,18 @@ class AxiomRegularization(nn.Module):
             loss = loss + self.reflexivity * torch.mean((1.0 - diag) ** 2)
 
         if self.transitivity > 0:
-            # Axiom 4: A @ A should be <= A (elementwise)
-            A_sq = torch.mm(accessibility, accessibility)
-            # Clamp to [0,1] range for comparison
-            A_sq = torch.clamp(A_sq, 0.0, 1.0)
-            violation = torch.relu(A_sq - accessibility)
+            # Axiom 4: (A ∘ A)[i,k] = max_j min(A[i,j], A[j,k]) <= A[i,k].
+            # This is the max-min (Gödel) composition, the fuzzy counterpart
+            # of relational composition: it is bounded in [0, 1], agrees with
+            # Boolean composition on a crisp relation, and is idempotent. The
+            # ordinary matrix product used before 0.9.0 *sums* over paths,
+            # so (A @ A)[i,k] >= A[i,i]·A[i,k] + A[i,k]·A[k,k] = 2·A[i,k] on
+            # any reflexive relation — the penalty then fired on every graded
+            # entry regardless of structure and acted as a crispness penalty.
+            comp = torch.minimum(
+                accessibility.unsqueeze(-1), accessibility.unsqueeze(-3)
+            ).max(dim=-2).values  # (i, k)
+            violation = torch.relu(comp - accessibility)
             loss = loss + self.transitivity * torch.mean(violation ** 2)
 
         if self.symmetry > 0:
@@ -432,7 +457,7 @@ class SemanticLoss(nn.Module):
 
     def __init__(self, reduction: str = "mean") -> None:
         super().__init__()
-        assert reduction in ("sum", "mean", "none")
+        _check_reduction(reduction)
         self.reduction = reduction
 
     def forward_mutual_exclusive(self, probs: Tensor) -> Tensor:

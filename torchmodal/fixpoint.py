@@ -120,6 +120,7 @@ def _iterate(
     max_iter: int,
     round_stable: bool,
     patience: int,
+    tau_min: float = F.TAU_MIN,
 ) -> FixpointResult:
     """Kleene-iterate ``step`` from ``init`` until it settles."""
     Z = init
@@ -147,7 +148,7 @@ def _iterate(
         prev_label = label
 
         if tau_decay is not None:
-            tau_j *= tau_decay
+            tau_j = max(tau_j * tau_decay, tau_min)
 
     return FixpointResult(Z, max_iter, False, "max_iter")
 
@@ -168,6 +169,7 @@ def lfp(
     patience: int = 3,
     dtype: torch.dtype = torch.float32,
     device: Optional[torch.device] = None,
+    tau_min: float = F.TAU_MIN,
 ) -> FixpointResult:
     r"""Least fixpoint: Kleene-iterate ``step`` up from :math:`\bot`.
 
@@ -185,6 +187,8 @@ def lfp(
         patience: Sweeps of label stability required. Default 3.
         dtype: Dtype of the initial bottom element.
         device: Device of the initial bottom element.
+        tau_min: Floor for the annealed temperature; see
+            :data:`torchmodal.functional.TAU_MIN`.
 
     Returns:
         A :class:`FixpointResult`.
@@ -193,6 +197,7 @@ def lfp(
     return _iterate(
         step, init, tau, tau_decay, tol,
         _default_max_iter(n_worlds, max_iter), round_stable, patience,
+        tau_min=tau_min,
     )
 
 
@@ -207,6 +212,7 @@ def gfp(
     patience: int = 3,
     dtype: torch.dtype = torch.float32,
     device: Optional[torch.device] = None,
+    tau_min: float = F.TAU_MIN,
 ) -> FixpointResult:
     r"""Greatest fixpoint: Kleene-iterate ``step`` down from :math:`\top`.
 
@@ -235,6 +241,9 @@ def gfp(
         patience: Sweeps of label stability required. Default 3.
         dtype: Dtype of the initial top element.
         device: Device of the initial top element.
+        tau_min: Floor for the annealed temperature; see
+            :data:`torchmodal.functional.TAU_MIN`. Without it a long gfp
+            under ``tau_decay`` underflows float32 and returns NaN.
 
     Returns:
         A :class:`FixpointResult`.
@@ -243,6 +252,7 @@ def gfp(
     return _iterate(
         step, init, tau, tau_decay, tol,
         _default_max_iter(n_worlds, max_iter), round_stable, patience,
+        tau_min=tau_min,
     )
 
 

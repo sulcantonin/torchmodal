@@ -42,7 +42,9 @@ class SmoothMin(nn.Module):
 
     Args:
         tau: Initial temperature. Default 0.1.
-        learnable: If ``True``, ``tau`` is a learnable parameter.
+        learnable: If ``True``, ``tau`` is an ``nn.Parameter`` and receives
+            gradient through the aggregation. Nothing keeps it positive;
+            clamp it after each optimiser step.
         dim: Dimension to aggregate over. Default -1.
     """
 
@@ -60,7 +62,7 @@ class SmoothMin(nn.Module):
         self.dim = dim
 
     def forward(self, x: Tensor) -> Tensor:
-        return F.smooth_min(x, tau=self.tau.item(), dim=self.dim)
+        return F.smooth_min(x, tau=self.tau, dim=self.dim)
 
     def extra_repr(self) -> str:
         return f"tau={self.tau.item():.4f}, dim={self.dim}"
@@ -74,7 +76,9 @@ class SmoothMax(nn.Module):
 
     Args:
         tau: Initial temperature. Default 0.1.
-        learnable: If ``True``, ``tau`` is a learnable parameter.
+        learnable: If ``True``, ``tau`` is an ``nn.Parameter`` and receives
+            gradient through the aggregation. Nothing keeps it positive;
+            clamp it after each optimiser step.
         dim: Dimension to aggregate over. Default -1.
     """
 
@@ -92,7 +96,7 @@ class SmoothMax(nn.Module):
         self.dim = dim
 
     def forward(self, x: Tensor) -> Tensor:
-        return F.smooth_max(x, tau=self.tau.item(), dim=self.dim)
+        return F.smooth_max(x, tau=self.tau, dim=self.dim)
 
     def extra_repr(self) -> str:
         return f"tau={self.tau.item():.4f}, dim={self.dim}"
@@ -103,7 +107,9 @@ class ConvPool(nn.Module):
 
     Args:
         tau: Initial temperature. Default 0.1.
-        learnable: If ``True``, ``tau`` is a learnable parameter.
+        learnable: If ``True``, ``tau`` is an ``nn.Parameter`` and receives
+            gradient through the pooling weights. Nothing keeps it positive;
+            clamp it after each optimiser step.
         dim: Dimension to pool over. Default -1.
     """
 
@@ -123,7 +129,7 @@ class ConvPool(nn.Module):
     def forward(self, x: Tensor, z: Tensor | None = None) -> Tensor:
         if z is None:
             z = x
-        return F.conv_pool(x, z, tau=self.tau.item(), dim=self.dim)
+        return F.conv_pool(x, z, tau=self.tau, dim=self.dim)
 
     def extra_repr(self) -> str:
         return f"tau={self.tau.item():.4f}, dim={self.dim}"

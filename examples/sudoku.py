@@ -1,4 +1,4 @@
-"""
+r"""
 Sudoku as Differentiable Modal Logic (9x9)
 ==========================================
 
@@ -35,14 +35,15 @@ Uses:
   - torchmodal.ContradictionLoss
 """
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-
 # Make sure the local development torchmodal (../torchmodal) shadows any
 # PyPI-installed release, which lacks newer APIs and fails silently.
 import sys
 from pathlib import Path
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import torchmodal
@@ -288,7 +289,8 @@ def main():
             total_contra += contra_loss(box_neg).item()
 
         print(f"  Total ContradictionLoss across 9 digits: {total_contra:.6f}")
-        print(f"  ({'consistent' if total_contra < 0.01 else 'contradictions detected'})")
+        verdict = "consistent" if total_contra < 0.01 else "contradictions detected"
+        print(f"  ({verdict})")
 
     # Show a few cells
     print()

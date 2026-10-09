@@ -43,6 +43,10 @@ import json
 import os
 import random
 import signal
+
+# Make sure the local development torchmodal (../torchmodal) shadows any
+# PyPI-installed release, which lacks newer APIs and fails silently.
+import sys
 import time
 from collections import Counter, OrderedDict
 from pathlib import Path
@@ -52,10 +56,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-# Make sure the local development torchmodal (../torchmodal) shadows any
-# PyPI-installed release, which lacks newer APIs and fails silently.
-import sys
-from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import torchmodal
@@ -254,7 +254,7 @@ def solve_pycosat(A, k):
     sol = pycosat.solve(clauses)
     if sol in ("UNSAT", "UNKNOWN"):
         return None
-    truth = set(l for l in sol if l > 0)
+    truth = set(lit for lit in sol if lit > 0)
     return [next(c for c in range(k) if v(i, c) in truth) for i in range(n)]
 
 
@@ -506,7 +506,8 @@ def learn_accessibility_demo(seed=0):
         tries += 1
         col = _random_proper_coloring(A_true, k, rng)
         if col is not None and tuple(col) not in seen:
-            seen.add(tuple(col)); colorings.append(col)
+            seen.add(tuple(col))
+            colorings.append(col)
     if len(colorings) < 5:
         return {"n": n, "k": k, "n_colorings": len(colorings),
                 "edge_recovery_auc": float("nan"),
@@ -549,7 +550,8 @@ def learn_accessibility_demo(seed=0):
 # =====================================================================
 def _avail(mod):
     try:
-        __import__(mod); return True
+        __import__(mod)
+        return True
     except Exception:
         return False
 
@@ -679,17 +681,23 @@ def _plot(results, snaps, demo_A, learn):
 
     # (a) grouped solve-rate bars
     names = list(results.keys())
-    x = np.arange(len(names)); w = 0.26
+    x = np.arange(len(names))
+    w = 0.26
     fig, ax = plt.subplots(figsize=(12, 5))
     for ki, tier in enumerate(TIERS):
         ax.bar(x + (ki - 1) * w,
                [results[nm]["tiers"][tier]["solve_rate"] for nm in names],
                w, label=tier)
-    ax.set_xticks(x); ax.set_xticklabels(names, rotation=35, ha="right", fontsize=8)
-    ax.set_ylabel("proper-coloring solve-rate"); ax.set_ylim(0, 1.05)
+    ax.set_xticks(x)
+    ax.set_xticklabels(names, rotation=35, ha="right", fontsize=8)
+    ax.set_ylabel("proper-coloring solve-rate")
+    ax.set_ylim(0, 1.05)
     ax.set_title("Graph 3-coloring solve-rate by method and difficulty")
-    ax.legend(title="tier"); ax.grid(axis="y", alpha=0.3)
-    fig.tight_layout(); fig.savefig(OUT / "solve_rate.png", dpi=130); plt.close(fig)
+    ax.legend(title="tier")
+    ax.grid(axis="y", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(OUT / "solve_rate.png", dpi=130)
+    plt.close(fig)
 
     # (b) MLNN solving one graph: conflict edges draining as L_contra -> 0
     if snaps:
@@ -708,18 +716,20 @@ def _plot(results, snaps, demo_A, learn):
             nx.draw_networkx_edges(G, pos, ax=ax, edge_color=ec, width=ew)
             nx.draw_networkx_nodes(G, pos, ax=ax, node_size=110,
                                    node_color=palette[col % len(palette)])
-            bad = sum(1 for u, v in G.edges() if col[u] == col[v])
             ax.set_title(f"epoch {ep}", fontsize=10)   # titleless: panel id only
             ax.axis("off")
-        fig.tight_layout(); fig.savefig(OUT / "mlnn_coloring.png", dpi=130,
-                                        bbox_inches="tight"); plt.close(fig)
+        fig.tight_layout()
+        fig.savefig(OUT / "mlnn_coloring.png", dpi=130, bbox_inches="tight")
+        plt.close(fig)
 
     # (c) learnable-A: true vs learned adjacency
     fig, axes = plt.subplots(1, 2, figsize=(7, 3.4))
     for ax, M, ttl in [(axes[0], learn["A_true"], "true adjacency"),
                        (axes[1], learn["A_learned"], "learned $A_\\theta$")]:
         im = ax.imshow(M, cmap="magma", vmin=0, vmax=1)
-        ax.set_title(ttl, fontsize=10); ax.set_xticks([]); ax.set_yticks([])
+        ax.set_title(ttl, fontsize=10)
+        ax.set_xticks([])
+        ax.set_yticks([])
     fig.colorbar(im, ax=axes, fraction=0.046, pad=0.04)
     fig.savefig(OUT / "learned_accessibility.png", dpi=130, bbox_inches="tight")
     plt.close(fig)
