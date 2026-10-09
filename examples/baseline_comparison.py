@@ -15,18 +15,20 @@ Baselines implemented:
 Each baseline is compared against the MLNN approach on the same task.
 """
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import numpy as np
-import time
 import json
-from collections import OrderedDict
 
 # Make sure the local development torchmodal (../torchmodal) shadows any
 # PyPI-installed release, which lacks newer APIs and fails silently.
 import sys
+import time
+from collections import OrderedDict
 from pathlib import Path
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import torchmodal
@@ -402,7 +404,10 @@ def run_dialect_argmax():
 
 
 def run_dialect_conformal(alpha=0.05):
-    """Conformal Prediction baseline: abstain when prediction set is empty or ambiguous."""
+    """Conformal Prediction baseline.
+
+    Abstain when the prediction set is empty or ambiguous.
+    """
     data = generate_dialect_data()
     label_map = {"AmE": 0, "BrE": 1, "Neutral": 2}
     features = torch.tensor([[d[0], d[1]] for d in data], dtype=torch.float32)
@@ -421,7 +426,8 @@ def run_dialect_conformal(alpha=0.05):
         nonconformity = 1.0 - cal_scores[torch.arange(len(cal_labels)), cal_labels]
         threshold = torch.quantile(nonconformity, 1.0 - alpha)
 
-        predictions = torch.full((len(labels),), 2, dtype=torch.long)  # default: Neutral
+        # default: Neutral
+        predictions = torch.full((len(labels),), 2, dtype=torch.long)
         for i in range(len(labels)):
             pred_set = []
             for c in range(2):
@@ -443,7 +449,8 @@ def compute_dialect_metrics(predictions, labels):
         fn = ((predictions != c) & (labels == c)).sum().float()
         precision = (tp / (tp + fp)).item() if (tp + fp) > 0 else 0.0
         recall = (tp / (tp + fn)).item() if (tp + fn) > 0 else 0.0
-        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+        denom = precision + recall
+        f1 = 2 * precision * recall / denom if denom > 0 else 0.0
         metrics[name] = {"P": precision, "R": recall, "F1": f1}
     metrics["Accuracy"] = (predictions == labels).float().mean().item()
     return metrics
@@ -634,6 +641,11 @@ def run_trust_temporal_comparison():
 # Main: Run all baselines
 # ===================================================================
 
+def _fmt(values):
+    """Two-decimal, comma-separated rendering of a sequence of floats."""
+    return ", ".join(f"{v:.2f}" for v in values)
+
+
 def main():
     print("=" * 70)
     print("  MLNN Baseline Comparisons (Reviewer Response)")
@@ -687,7 +699,10 @@ def main():
         "ConformalPrediction": cp_d,
     }
 
-    print(f"\n  {'Method':<20} | {'AmE F1':<8} | {'BrE F1':<8} | {'Neutral F1':<10} | {'Acc'}")
+    print(
+        f"\n  {'Method':<20} | {'AmE F1':<8} | {'BrE F1':<8} "
+        f"| {'Neutral F1':<10} | {'Acc'}"
+    )
     print("  " + "-" * 60)
     for name, r in RESULTS["dialect"].items():
         print(
@@ -715,25 +730,27 @@ def main():
     }
     RESULTS["trust_temporal"] = temporal_t
 
-    print(f"\n  Static trust learning:")
-    print(f"    True reliability:    [0.95, 0.90, 0.50, 0.15, 0.05]")
-    print(f"    MLNN trust:          [{', '.join(f'{t:.2f}' for t in modal_t['trust'])}]")
-    print(f"    Non-modal MLP trust: [{', '.join(f'{t:.2f}' for t in nonmodal_t['trust'])}]")
+    print("\n  Static trust learning:")
+    print("    True reliability:    [0.95, 0.90, 0.50, 0.15, 0.05]")
+    print(f"    MLNN trust:          [{_fmt(modal_t['trust'])}]")
+    print(f"    Non-modal MLP trust: [{_fmt(nonmodal_t['trust'])}]")
     print(f"    MLNN correlation:    {modal_t['correlation']:.3f}")
     print(f"    MLP correlation:     {nonmodal_t['correlation']:.3f}")
 
-    print(f"\n  Temporal trust (Reformed Liar = Agent 2):")
-    print(f"    Phase 1 reliability: [{', '.join(f'{r:.2f}' for r in temporal_t['phase1_reliability'])}]")
-    print(f"    Phase 2 reliability: [{', '.join(f'{r:.2f}' for r in temporal_t['phase2_reliability'])}]")
-    print(f"    MLNN trust:          [{', '.join(f'{t:.2f}' for t in temporal_t['modal_trust'])}]")
-    print(f"    MLP (all data):      [{', '.join(f'{t:.2f}' for t in temporal_t['nonmodal_all_trust'])}]")
-    print(f"    MLP (recent only):   [{', '.join(f'{t:.2f}' for t in temporal_t['nonmodal_recent_trust'])}]")
+    print("\n  Temporal trust (Reformed Liar = Agent 2):")
+    print(f"    Phase 1 reliability: [{_fmt(temporal_t['phase1_reliability'])}]")
+    print(f"    Phase 2 reliability: [{_fmt(temporal_t['phase2_reliability'])}]")
+    print(f"    MLNN trust:          [{_fmt(temporal_t['modal_trust'])}]")
+    print(f"    MLP (all data):      [{_fmt(temporal_t['nonmodal_all_trust'])}]")
+    print(f"    MLP (recent only):   [{_fmt(temporal_t['nonmodal_recent_trust'])}]")
 
     reformed = temporal_t["reformed_agent"]
     print(f"\n  Agent {reformed} (reformed liar) trust scores:")
-    print(f"    MLNN:             {temporal_t['modal_trust'][reformed]:.3f} (penalizes past)")
+    mlnn_reformed = temporal_t['modal_trust'][reformed]
+    print(f"    MLNN:             {mlnn_reformed:.3f} (penalizes past)")
     print(f"    MLP (all data):   {temporal_t['nonmodal_all_trust'][reformed]:.3f}")
-    print(f"    MLP (recent):     {temporal_t['nonmodal_recent_trust'][reformed]:.3f} (no history)")
+    mlp_reformed = temporal_t['nonmodal_recent_trust'][reformed]
+    print(f"    MLP (recent):     {mlp_reformed:.3f} (no history)")
 
     # Save results
     print(f"\n\n{'='*70}")

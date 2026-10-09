@@ -266,7 +266,12 @@ class TestFrameAudit:
         report = frame_audit(A, shuffles=3)
         assert report["reflexive"]["score"] == pytest.approx(1.0)
         assert report["reflexive"]["null"] is None
-        assert report["serial"]["score"] == pytest.approx(1.0)
+        # Self-loops do not count as successors (0.9.0): the identity relates
+        # nothing to anything, matching AxiomRegularization(serial_hollow=True).
+        assert report["serial"]["score"] == pytest.approx(0.0)
+        assert report["serial"]["null"] is None
+        legacy = frame_audit(A, shuffles=3, serial_hollow=False)
+        assert legacy["serial"]["score"] == pytest.approx(1.0)
 
     def test_symmetric_graph_beats_its_shuffled_null(self):
         torch.manual_seed(0)

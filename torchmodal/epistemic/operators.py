@@ -51,17 +51,22 @@ def _group_index(accessibilities: Tensor, group: Group) -> Tensor:
     return torch.as_tensor(list(group), dtype=torch.long, device=accessibilities.device)
 
 
-def _tau_at(schedule: TauSchedule, tau: float, step: int) -> float:
+def _tau_at(
+    schedule: TauSchedule, tau: float, step: int, tau_min: float = F.TAU_MIN
+) -> float:
     """Resolve the temperature for iteration ``step``.
 
     ``None`` keeps ``tau`` fixed, a float is a geometric decay factor
-    (``tau * schedule ** step``), and a callable is applied to ``step``.
+    (``tau * schedule ** step``), and a callable is applied to ``step``. The
+    result is floored at ``tau_min``: a geometric schedule underflows float32
+    after ~125 halvings and the aggregators then return NaN (see
+    :data:`torchmodal.functional.TAU_MIN`).
     """
     if schedule is None:
         return tau
     if callable(schedule):
-        return float(schedule(step))
-    return float(tau * (float(schedule) ** step))
+        return max(float(schedule(step)), tau_min)
+    return max(float(tau * (float(schedule) ** step)), tau_min)
 
 
 def and_bounds(bounds: Tensor, dim: int = 0, tnorm: str = "godel") -> Tensor:
@@ -163,6 +168,7 @@ def mutual_knowledge(
     tnorm: str = "godel",
     tau_schedule: TauSchedule = None,
     top_k: int | None = None,
+    tau_min: float = F.TAU_MIN,
 ) -> Tensor:
     r"""The bounded tower :math:`E_G^k\varphi` — mutual knowledge to depth ``k``.
 
@@ -192,6 +198,8 @@ def mutual_knowledge(
             geometric decay ``tau * rho ** level``, whose total slack is bounded
             by ``tau * H / (1 - rho)``; or a callable ``level -> tau``.
         top_k: Passed through to :func:`~torchmodal.functional.necessity`.
+        tau_min: Floor for the scheduled temperature. Default
+            :data:`torchmodal.functional.TAU_MIN`.
 
     Returns:
         ``(|W|, 2)`` bounds for :math:`E_G^{depth}\varphi`.
@@ -207,7 +215,7 @@ def mutual_knowledge(
             bounds,
             accessibilities,
             group=group,
-            tau=_tau_at(tau_schedule, tau, level),
+            tau=_tau_at(tau_schedule, tau, level, tau_min),
             tnorm=tnorm,
             top_k=top_k,
         )
@@ -260,6 +268,7 @@ def common_knowledge(
     max_depth: Optional[int] = None,
     tol: float = 1e-4,
     max_iter: int = 200,
+    tau_min: float = F.TAU_MIN,
 ) -> Tensor:
     r"""Common knowledge :math:`C_G\varphi`, the greatest fixpoint of
     :math:`X \mapsto E_G(\varphi \wedge X)`.
@@ -317,13 +326,15 @@ def common_knowledge(
         max_depth: Stop after this many iterations instead of converging.
         tol: Sup-norm convergence threshold. Default 1e-4.
         max_iter: Iteration cap. Default 200.
+        tau_min: Floor for the annealed temperature. Default
+            :data:`torchmodal.functional.TAU_MIN`. Up to 0.8.0 there was no
+            floor and ``max_depth >= 130`` returned NaN.
 
     Returns:
         ``(|W|, 2)`` bounds for :math:`C_G\varphi`.
     """
     phi = _as_bounds(prop_bounds)
     x = torch.ones_like(phi)
-    x = torch.stack([x[..., 0], x[..., 1]], dim=-1)
     limit = max_depth if max_depth is not None else max_iter
     for step in range(limit):
         conj = and_bounds(torch.stack([phi, x], dim=0), dim=0, tnorm=tnorm)
@@ -331,7 +342,7 @@ def common_knowledge(
             conj,
             accessibilities,
             group=group,
-            tau=_tau_at(tau_decay, tau, step),
+            tau=_tau_at(tau_decay, tau, step, tau_min),
             tnorm=tnorm,
         )
         # Greatest fixpoint from above: the iterate may only decrease.

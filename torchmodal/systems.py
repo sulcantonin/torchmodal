@@ -18,7 +18,7 @@ Provides ready-to-use modules for specific modal logics:
 
 from __future__ import annotations
 
-from typing import Optional, Union, cast
+from typing import Optional, cast
 
 import torch
 import torch.nn as nn
@@ -26,6 +26,7 @@ from torch import Tensor
 
 from torchmodal import functional as F
 from torchmodal.nn.accessibility import (
+    AttentionAccessibility,
     FixedAccessibility,
     LearnableAccessibility,
     MetricAccessibility,
@@ -266,6 +267,16 @@ class MultiAgentKripke(nn.Module):
             F and the composites), see :class:`torchmodal.nn.Necessity`.
             This replaces the deprecated ``top_k`` of the accessibility
             modules. Default ``None``.
+        epistemic_accessibility: An accessibility module to use for the
+            agent-to-agent relation instead of the default
+            :class:`~torchmodal.nn.LearnableAccessibility` /
+            :class:`~torchmodal.nn.FixedAccessibility`. A
+            :class:`~torchmodal.nn.MetricAccessibility` or
+            :class:`~torchmodal.nn.AttentionAccessibility` here is what
+            makes the ``features`` argument of :meth:`K`, :meth:`K_G` and
+            :meth:`K_F` do something: it is forwarded to the module. Up to
+            0.8.0 ``features`` was accepted and silently ignored. Overrides
+            ``learnable_epistemic`` and ``init_bias``.
     """
 
     def __init__(
@@ -276,6 +287,7 @@ class MultiAgentKripke(nn.Module):
         learnable_epistemic: bool = True,
         init_bias: float = -2.0,
         top_k: Optional[int] = None,
+        epistemic_accessibility: Optional[nn.Module] = None,
     ) -> None:
         super().__init__()
         self.num_agents = num_agents
@@ -289,13 +301,12 @@ class MultiAgentKripke(nn.Module):
         A_temporal = self._build_spacetime_temporal()
         self.register_buffer("A_temporal", A_temporal)
 
-        # Epistemic accessibility: learnable, or a fixed identity. Annotated
-        # as the union so mypy accepts both branches; both satisfy the same
-        # call signature.
-        self.epistemic_access: Union[
-            LearnableAccessibility, FixedAccessibility
-        ]
-        if learnable_epistemic:
+        # Epistemic accessibility: a user-supplied module, learnable, or a
+        # fixed identity.
+        self.epistemic_access: nn.Module
+        if epistemic_accessibility is not None:
+            self.epistemic_access = epistemic_accessibility
+        elif learnable_epistemic:
             self.epistemic_access = LearnableAccessibility(
                 num_agents,
                 init_bias=init_bias,
@@ -327,10 +338,19 @@ class MultiAgentKripke(nn.Module):
     ) -> Tensor:
         """Get the epistemic (agent-to-agent) accessibility matrix.
 
+        Args:
+            features: Per-agent features, forwarded when the epistemic module
+                is a :class:`~torchmodal.nn.MetricAccessibility` or
+                :class:`~torchmodal.nn.AttentionAccessibility` (see the
+                ``epistemic_accessibility`` constructor argument); ignored by
+                the default learnable / fixed relations.
+
         Returns:
             ``(num_agents, num_agents)`` matrix in [0, 1].
         """
-        if isinstance(self.epistemic_access, MetricAccessibility):
+        if isinstance(
+            self.epistemic_access, (MetricAccessibility, AttentionAccessibility)
+        ):
             return cast(Tensor, self.epistemic_access(features))
         return cast(Tensor, self.epistemic_access())
 

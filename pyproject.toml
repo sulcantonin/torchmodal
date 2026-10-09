@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "torchmodal"
-version = "0.8.0"
+version = "0.9.0"
 description = "Differentiable modal logic for PyTorch: sound interval bounds and a learnable Kripke accessibility relation (Modal Logic Neural Networks)"
 readme = "README.md"
 license = "MIT"
@@ -79,6 +79,9 @@ torchmodal = ["py.typed"]
 [tool.ruff]
 line-length = 88
 target-version = "py39"
+# Notebooks are executed in CI (scripts/run_notebooks.py) but not linted:
+# one-line `a = 1; b = 2` cells are a notebook idiom, not a defect.
+extend-exclude = ["*.ipynb"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]

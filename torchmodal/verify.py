@@ -19,7 +19,8 @@ The workflow is:
    is not worth having.
 3. **Round and certify** with :func:`round_and_certify`, which thresholds the
    relation, re-evaluates exactly, and reports ``PROVEN`` / ``REFUTED`` /
-   ``UNDECIDED`` per world, with a witness path where one exists.
+   ``UNDECIDED`` per world — with a witness path for every ``PROVEN``
+   reachability verdict (``ex`` / ``ef``).
 4. Optionally **export** to nuXmv or NuSMV with :func:`to_smv` and have an
    external checker confirm it.
 
@@ -78,6 +79,11 @@ class CertificateResult(NamedTuple):
         n_flipped: How many entries of the relation the rounding moved by more
             than 0.25, a coarse measure of how much the certificate's frame
             differs from the learned one.
+        witnesses: For the reachability operators (``"ex"``, ``"ef"``), one
+            entry per world: the shortest path on the rounded frame from that
+            world to a world satisfying the proposition, or ``None`` when the
+            verdict is not ``PROVEN`` or no path exists. ``None`` as a whole
+            for the other operators, whose evidence is not a single path.
     """
 
     verdicts: List[str]
@@ -85,6 +91,7 @@ class CertificateResult(NamedTuple):
     margin: Tensor
     relation: Tensor
     n_flipped: int
+    witnesses: Optional[List[Optional[List[int]]]] = None
 
 
 def round_relation(
@@ -311,13 +318,40 @@ def round_and_certify(
     n_flipped = int(
         ((rounded - accessibility).abs() > 0.25).sum()
     )
+    verdicts = certify(exact, threshold)
+
+    # A PROVEN reachability verdict is backed by a concrete path; report it.
+    # For ``ex`` the witness must be a single step, so a longer path is not
+    # evidence and is dropped.
+    witnesses: Optional[List[Optional[List[int]]]] = None
+    if operator in ("ex", "ef"):
+        witnesses = []
+        for w, verdict in enumerate(verdicts):
+            path: Optional[List[int]] = None
+            if verdict == Verdict.PROVEN:
+                path = witness_path(rounded, w, prop_bounds, threshold)
+                if operator == "ex":
+                    path = _ex_witness(rounded, w, prop_bounds, threshold)
+            witnesses.append(path)
+
     return CertificateResult(
-        verdicts=certify(exact, threshold),
+        verdicts=verdicts,
         bounds=exact,
         margin=rounding_margin(soft),
         relation=rounded,
         n_flipped=n_flipped,
+        witnesses=witnesses,
     )
+
+
+def _ex_witness(
+    A: Tensor, start: int, goal: Tensor, threshold: float
+) -> Optional[List[int]]:
+    """A one-step witness ``[start, v]`` for ``EX``, or ``None``."""
+    g = goal if goal.dim() == 1 else 0.5 * (goal[..., 0] + goal[..., 1])
+    succ = (A[start] >= threshold) & (g >= threshold)
+    hits = succ.nonzero().flatten().tolist()
+    return [start, int(hits[0])] if hits else None
 
 
 def to_smv(

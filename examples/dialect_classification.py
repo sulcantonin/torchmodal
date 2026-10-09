@@ -19,20 +19,19 @@ Uses:
   - Threshold-based Kripke worlds (Real, Skeptical, Credulous)
 """
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import numpy as np
-
 # Make sure the local development torchmodal (../torchmodal) shadows any
 # PyPI-installed release, which lacks newer APIs and fails silently.
 import sys
 from pathlib import Path
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import torchmodal
 from torchmodal import functional as F
-
 
 # Feature word sets
 AME_FEATURES = {"color", "favorite", "realize", "organize", "truck",
@@ -177,7 +176,7 @@ def main():
     train_targets[train_labels == 0, 0] = 1.0  # HasAmE
     train_targets[train_labels == 1, 1] = 1.0  # HasBrE
 
-    print(f"\n--- Training Proposition Predictor ---")
+    print("\n--- Training Proposition Predictor ---")
     for epoch in range(100):
         optimizer.zero_grad()
         preds = predictor(train_features)
@@ -190,7 +189,7 @@ def main():
     # 2. Apply Modal Reasoner to ALL data (including unseen Neutral)
     reasoner = ModalDialectReasoner()
 
-    print(f"\n--- Evaluating Modal Reasoner on Full 3-Class Test ---")
+    print("\n--- Evaluating Modal Reasoner on Full 3-Class Test ---")
     predictor.eval()
     with torch.no_grad():
         prop_scores = predictor(features)

@@ -117,7 +117,7 @@ factorises per world:
 | `¬a` | both endpoints (exact — negation is an involution) |
 | `a ∧ b` | both: `L_a ← L_φ`, `U_a ← U_φ + 1 − L_b` |
 | `a ∨ b` | both: `L_a ← L_φ − U_b`, `U_a ← U_φ` |
-| `a → b` | `L_b ← L_φ + L_a − 1` (modus ponens; no modus tollens) |
+| `a → b` | both: `L_b ← L_φ + L_a − 1` (modus ponens), `U_a ← 1 − L_φ + U_b` (modus tollens), and `U_b ← U_φ + U_a − 1`, `L_a ← 1 + L_b − U_φ` where `U_φ < 1` |
 | `□ϕ` | lower only: `L_ϕ[w'] ← max_w (L_φ[w] − 1 + A[w,w'])` |
 | `♢ϕ` | upper only: `U_ϕ[w'] ← min_w (U_φ[w] + 1 − A[w,w'])` |
 | `ϕ U ψ` | none — the backward DP couples every time step |
@@ -126,7 +126,8 @@ factorises per world:
 which neighbour realises it, so no canonical per-world constraint exists. The
 two passes are **iterated** to `convergence_threshold`, not run once — a
 downward update can stale a sibling formula that shares a leaf — and a
-`RuntimeWarning` is raised if `max_iterations` is exhausted first.
+`RuntimeWarning` is raised if `max_iterations` is exhausted first. The input
+dict is not modified; the tightened bounds are returned in a new one.
 
 
 ## Notebooks

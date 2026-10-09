@@ -106,10 +106,16 @@ def shuffled_null(
     return float(sum(scores) / len(scores)) if scores else float("nan")
 
 
-def _score(A: Tensor, axiom: str) -> float:
+def _score(A: Tensor, axiom: str, serial_hollow: bool = True) -> float:
     if axiom == "reflexive":
         return float(A.diagonal().mean())
     if axiom == "serial":
+        if serial_hollow:
+            # A self-loop must not count as a successor, or the identity —
+            # which relates nothing to anything — scores as perfectly serial.
+            # This matches ``AxiomRegularization(serial_hollow=True)``.
+            off = ~torch.eye(A.shape[0], dtype=torch.bool, device=A.device)
+            A = A * off
         return float(A.max(dim=1).values.mean())
     if axiom == "symmetric":
         return float((1.0 - (A - A.T).abs()).mean())
@@ -122,6 +128,7 @@ def frame_audit(
     shuffles: int = 100,
     coverage_eps: float = 1e-6,
     generator: Optional[torch.Generator] = None,
+    serial_hollow: bool = True,
 ) -> Dict[str, AxiomReport]:
     r"""Audit a relation against T, D, B, 4 and 5, with vacuity correction.
 
@@ -135,12 +142,29 @@ def frame_audit(
     the Euclidean axiom get all four numbers, and ``score_non_vacuous`` is
     ``None`` when no triple tests the axiom.
 
+    **Seriality ignores self-loops by default** (``serial_hollow=True``), the
+    same reading as :class:`torchmodal.losses.AxiomRegularization`: the
+    identity relates nothing to anything, and a reflexive learned relation
+    (the default of :class:`~torchmodal.nn.LearnableAccessibility`) would
+    otherwise score 1.0 on D whatever its off-diagonal looks like. Up to 0.8.0
+    the audit counted self-loops while the regulariser did not, so the two
+    disagreed on the identity.
+
+    .. note::
+       The transitivity and Euclidean checks materialise a ``|W|³`` tensor
+       per evaluation, and the shuffled null evaluates them ``shuffles``
+       times each. At 50 worlds that is nothing; at 1000 worlds each tensor
+       is 4 GB in float32. Reduce ``shuffles`` or audit a subsample of
+       worlds on a large frame.
+
     Args:
         A: ``(|W|, |W|)`` relation in [0, 1].
         shuffles: Shape-matched null samples. Default 100.
         coverage_eps: A triple counts as testing the axiom when its antecedent
             exceeds this. Default 1e-6.
         generator: Optional ``torch.Generator`` for reproducible shuffles.
+        serial_hollow: Ignore the diagonal when scoring seriality. Default
+            ``True``.
 
     Returns:
         Mapping from axiom name to :class:`AxiomReport`.
@@ -149,16 +173,22 @@ def frame_audit(
         >>> import torch
         >>> from torchmodal.epistemic import frame_audit
         >>> A = torch.eye(4)
-        >>> report = frame_audit(A, shuffles=5)["reflexive"]
-        >>> report["score"]
+        >>> report = frame_audit(A, shuffles=5)
+        >>> reflexive, serial = report["reflexive"], report["serial"]
+        >>> reflexive["score"]
         1.0
+        >>> serial["score"]                  # self-loops do not count
+        0.0
     """
     A = A.detach()
     out: Dict[str, AxiomReport] = {}
 
     for axiom in ("reflexive", "serial"):
         out[axiom] = AxiomReport(
-            score=_score(A, axiom), coverage=None, score_non_vacuous=None, null=None
+            score=_score(A, axiom, serial_hollow=serial_hollow),
+            coverage=None,
+            score_non_vacuous=None,
+            null=None,
         )
 
     out["symmetric"] = AxiomReport(

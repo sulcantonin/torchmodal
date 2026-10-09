@@ -42,8 +42,9 @@ def anneal_temperature(
     Args:
         epoch: Current epoch (0-indexed).
         total_epochs: Total number of training epochs.
-        tau_start: Starting (high) temperature. Default 2.0.
-        tau_end: Final (low) temperature. Default 0.1.
+        tau_start: Starting temperature. Default 2.0.
+        tau_end: Final temperature. Default 0.1. Either direction works:
+            ``tau_start < tau_end`` heats instead of cooling.
         schedule: Annealing schedule — ``"linear"``, ``"cosine"``,
             or ``"exponential"``. Default ``"linear"``.
 
@@ -71,7 +72,11 @@ def anneal_temperature(
             f"Choose from: linear, cosine, exponential"
         )
 
-    return max(tau, tau_end)
+    # Keep the value inside the schedule's range regardless of direction.
+    # The previous `max(tau, tau_end)` assumed cooling and returned tau_end
+    # for every epoch of a heating schedule (tau_start < tau_end).
+    lo, hi = min(tau_start, tau_end), max(tau_start, tau_end)
+    return min(max(tau, lo), hi)
 
 
 def build_ring_accessibility(
@@ -221,27 +226,45 @@ def bounds_to_labels(
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """Convert truth bounds to modal classification labels.
 
-    Used in the dialect classification experiment (Section 5.2) to
-    assign Necessary (□), Possible (♢), or Indeterminate labels.
+    Used in the dialect classification experiment (Section 5.2) to decide,
+    per sample, whether the interval **establishes** a proposition, merely
+    **admits** it, or leaves it open — the last being the abstention signal
+    for out-of-distribution input.
+
+    The labels read the two endpoints separately, which is the whole point
+    of carrying an interval:
+
+    - ``is_necessary``: ``L > threshold_necessary`` — every value the
+      interval admits is true (□P).
+    - ``is_possible``: ``U > threshold_possible`` — the interval admits a
+      true value (♢P). Necessary implies possible.
+    - ``is_indeterminate``: possible but not necessary — the interval
+      straddles the decision region and the model should abstain.
+
+    ``~is_possible`` is the fourth reading, "impossible". Up to 0.8.0 all
+    three labels were computed from the midpoint ``(L + U) / 2``, which
+    discards the width — a tight ``[0.95, 0.96]`` and a vacuous ``[0.9, 1.0]``
+    scored the same — and ``is_indeterminate`` was ``~is_possible``, i.e. the
+    label for *impossible*, so a wide, genuinely undecided interval was never
+    flagged.
 
     Args:
         bounds: ``(batch, 2)`` or ``(2,)`` truth bounds ``[L, U]``.
-        threshold_necessary: Above this → □P. Default 0.9.
-        threshold_possible: Above this → ♢P. Default 0.1.
+        threshold_necessary: ``L`` above this → □P. Default 0.9.
+        threshold_possible: ``U`` above this → ♢P. Default 0.1.
 
     Returns:
         Tuple of ``(is_necessary, is_possible, is_indeterminate)``
-        boolean tensors.
+        boolean tensors of shape ``(batch,)``.
     """
     if bounds.dim() == 1:
         bounds = bounds.unsqueeze(0)
 
     L = bounds[..., 0]
     U = bounds[..., 1]
-    score = (L + U) / 2.0
 
-    is_necessary = score > threshold_necessary
-    is_possible = score > threshold_possible
-    is_indeterminate = ~is_possible
+    is_necessary = L > threshold_necessary
+    is_possible = U > threshold_possible
+    is_indeterminate = is_possible & ~is_necessary
 
     return is_necessary, is_possible, is_indeterminate

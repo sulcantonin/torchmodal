@@ -6,6 +6,166 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-10-09
+
+An audit release. A line-by-line review of the package found a handful of
+features that were documented but did nothing, two formulas that did not
+compute what their names said, and several API edges that gave a wrong
+answer silently. Every item below has a regression test in
+`tests/test_regressions_0_9.py` that states the symptom it guards. The core
+operators were re-verified independently of the test-suite as part of the same
+audit: exact-mode CTL matched a brute-force Boolean model checker on 300 random
+serial frames per operator, the soft bounds bracketed the crisp value every
+time, and Theorem 1 held over 500 random graded, batched, top-k cases — none of
+that changed.
+
+Several fixes **move numbers**, so this is a minor bump under 0.x semver.
+They are listed first.
+
+### Changed — behaviour that moves
+
+- **`AxiomRegularization(transitivity=...)` now uses the max–min
+  composition** `max_j min(A[i,j], A[j,k]) <= A[i,k]`, not the matrix product.
+  The product sums over intermediate worlds, so on any reflexive relation
+  `(A @ A)[i,k] >= 2·A[i,k]` and the penalty fired on every graded entry
+  whether or not the relation was transitive — a Gödel-transitive relation
+  scored 0.0625 instead of 0, and the term behaved as a crispness penalty.
+  The Euclidean term already used Gödel `min`; the two are now consistent.
+  Results from `examples/axiom_ablation.py` under the "Transitivity (4)" row
+  are affected.
+
+- **`nn.AttentionAccessibility` is reparameterised.** It returned the
+  row-softmax weights of `nn.MultiheadAttention`, so every row summed to 1
+  and no entry could exceed `1/|W|` on average: with 50 worlds the largest
+  off-diagonal entry was 0.07, which makes a □ neuron over it close to
+  vacuous. It now scores each ordered pair with query/key projections
+  (asymmetric, as advertised) and squashes each score with a sigmoid, so
+  `A_ij = 1` is reachable for every edge. New `init_bias` argument, same role
+  as on `LearnableAccessibility`. The state-dict layout changed (`q_proj` /
+  `k_proj`); checkpoints from earlier releases do not load.
+
+- **`utils.bounds_to_labels` reads the two endpoints.** It computed all
+  three labels from the midpoint `(L + U) / 2`, which discards the width —
+  the whole reason to carry an interval — and defined `is_indeterminate` as
+  `~is_possible`, i.e. the label for *impossible*. Now `is_necessary` is
+  `L > threshold_necessary`, `is_possible` is `U > threshold_possible`, and
+  `is_indeterminate` is possible-but-not-necessary, the abstention signal.
+
+- **`epistemic.frame_audit` ignores self-loops when scoring seriality**
+  (`serial_hollow=True`, new argument), matching
+  `AxiomRegularization(serial_hollow=True)`. The identity scored 1.0 on D in
+  the audit and was penalised in the regulariser; the two now agree. Pass
+  `serial_hollow=False` for the old reading.
+
+- **`inference.upward_downward` returns a new dict** and leaves its `bounds`
+  argument untouched. It used to update the caller's dict in place as well
+  as return it, so a second call on the same dict started from the previous
+  fixed point.
+
+- **`KripkeModel.contradiction_loss()` warns** when called without derived
+  bounds on a model whose propositions are all learnable. Learnable bounds
+  are a sigmoid pair sorted into `(min, max)`, so that call is identically
+  zero; the README Quick Start ended on it. See the new `derived` argument
+  below for the form that trains.
+
+- **`utils.anneal_temperature` works for heating schedules.** It clamped
+  with `max(tau, tau_end)`, which returned `tau_end` for every epoch whenever
+  `tau_start < tau_end`. Cooling schedules are unchanged.
+
+### Fixed
+
+- **`learnable_tau=True` never received a gradient**, on all five modules
+  that offer it (`nn.Necessity`, `nn.Possibility`, `nn.SmoothMin`,
+  `nn.SmoothMax`, `nn.ConvPool`). Each called the functional layer with
+  `tau=self.tau.item()`, which detaches the parameter; when `tau` was the
+  only trainable tensor the output did not even require grad and
+  `.backward()` raised. The functional operators now accept a 0-d tensor for
+  `tau` and the modules pass the parameter through. `set_tau` works on the
+  parameter too (it copies under `no_grad`). Nothing keeps a learned `tau`
+  positive — clamp it after each step; the docstrings say so.
+
+- **`functional.group_announce` raised a broadcasting error with per-world
+  trust** of shape `(|G|, |W|)`, which the docstring allows via `announce`.
+  The recipient mask is now aligned on the agent axis before scaling.
+
+- **The downward pass inverted implication on one endpoint only.** For
+  `a → b` it ran modus ponens (`L_b`) and nothing else, so `a → b` true with
+  `b` false left `a` at `[0, 1]` instead of `[0, 0]`; the module and package
+  docstrings claimed both endpoints. All four sound Łukasiewicz inverses now
+  run: modus ponens on `L_b`, modus tollens on `U_a`, and the two upper-side
+  rules (`U_b <= U_φ + U_a − 1`, `L_a >= 1 + L_b − U_φ`) where the parent's
+  upper bound is below 1, since at `U_φ = 1` the clamp may be active and
+  says nothing. Verified against a grid enumeration: every `(a, b)`
+  consistent with the parent interval survives.
+
+- **Annealed temperatures underflowed to NaN.** `common_knowledge`,
+  `mutual_knowledge` with a schedule, `fixpoint.lfp` / `gfp` and
+  `functional.until_graph` all multiply `tau` by a decay factor every sweep
+  with no floor; in float32 `x / tau` overflows once `tau` drops below about
+  1e-38 and the log-sum-exp aggregators return NaN —
+  `common_knowledge(max_depth=160)` did. All four now floor at
+  `functional.TAU_MIN` (1e-6, new constant), exposed as a `tau_min` argument.
+  At 1e-6 the smooth aggregators are within `1e-6 · log n` of the hard
+  extremum, so the floor costs nothing measurable.
+
+- **A learnable `Proposition` with `init=0.0` or `1.0` was untrainable**:
+  `logit(init)` is ±inf, which sigmoid maps back to the requested value with
+  a gradient of exactly 0 forever. `init` is now clamped to
+  `[1e-4, 1 − 1e-4]` for learnable propositions.
+
+- **`MultiAgentKripke` accepted `features` and ignored them.** The branch
+  that forwarded them tested for a module type the attribute could never
+  hold. New `epistemic_accessibility=` constructor argument accepts any
+  accessibility module; `features` reach a `MetricAccessibility` or
+  `AttentionAccessibility` placed there.
+
+- **`verify.round_and_certify` promised a witness path and returned none.**
+  `CertificateResult` gains a `witnesses` field: for `"ef"` the shortest
+  path on the rounded frame from each `PROVEN` world to the proposition,
+  for `"ex"` the one-step witness, `None` for the other operators.
+
+- **Argument validation no longer uses `assert`**, which `python -O`
+  strips: `KripkeModel(world_names=...)` of the wrong length and an unknown
+  `reduction` on `ContradictionLoss` / `SemanticLoss` raise `ValueError`.
+
+### Added
+
+- **`KripkeModel.contradiction_loss(derived=...)`.** Pass a mapping from
+  proposition name to bounds derived for it by inference — `□p` on a
+  reflexive frame, the output of `upward_downward`, an axiom — and the
+  asserted and derived intervals are intersected before `relu(L − U)` is
+  summed. This is the LNN contradiction the objective is about, and it is
+  differentiable in both the proposition and the relation. The README Quick
+  Start now uses it.
+
+- **`bounds=` on the connective modules** (`nn.Negation`, `nn.Conjunction`,
+  `nn.Disjunction`, `nn.Implication`). By default a tensor whose trailing
+  dimension is 2 is read as `[L, U]` pairs, which is wrong for a
+  *point-valued* tensor over two worlds (`Negation()(tensor([0.2, 0.9]))`
+  returned `[0.1, 0.8]`). `bounds=True` / `False` makes the reading
+  explicit. The functional API never had this ambiguity.
+
+- `functional.smooth_min`, `smooth_max`, `conv_pool`, `necessity` and
+  `possibility` accept a 0-d tensor for `tau`.
+
+- `functional.TAU_MIN` and the `tau_min` arguments described above.
+
+- `tests/test_regressions_0_9.py` — 50 tests, one group per item here.
+
+### Project
+
+- `ruff` now lints `examples/` in CI as well as the package and tests; the
+  114 findings there (unused imports, import order, semicolon-joined
+  statements, over-long lines, two shadowed `Path` imports) are fixed.
+  Notebooks are excluded from linting (they are still executed in CI).
+- The CI workflow declares `permissions: contents: read`.
+- `.coverage`, `coverage.xml` and `htmlcov/` are ignored.
+- `frame_audit` documents that its transitivity and Euclidean checks
+  materialise a `|W|³` tensor per evaluation.
+- `until_graph`'s docstring no longer claims the annealed iterate is
+  monotone on both endpoints; the upper endpoint can fall as `τ` does. The
+  enclosure holds at every sweep regardless.
+
 ## [0.8.0] — 2026-09-18
 
 Project health, aimed at what a reviewer checks first. No public API change.

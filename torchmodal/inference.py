@@ -27,7 +27,10 @@ for, :func:`upward_downward` iterates to ``convergence_threshold`` and warns
 if ``max_iterations`` is exhausted first.
 
 **Downward coverage.** ``NEGATION``, ``CONJUNCTION``, ``DISJUNCTION`` and
-``IMPLICATION`` invert on both endpoints. ``NECESSITY`` and ``POSSIBILITY``
+``IMPLICATION`` invert on both endpoints of both children (for implication:
+modus ponens on ``L_b``, modus tollens on ``U_a``, and the two upper-side
+rules that apply where the parent's upper bound is below 1). ``NECESSITY``
+and ``POSSIBILITY``
 invert on one endpoint each — a universally quantified lower bound
 distributes over the neighbourhood (□) and an existential upper bound caps
 every disjunct (♢), while the opposite directions constrain an aggregate
@@ -284,9 +287,15 @@ def upward_downward(
             bounds are. Default ``None`` (full aggregation).
 
     Returns:
-        Dict mapping formula names to tightened bounds ``(|W|, 2)``.
+        A **new** dict mapping formula names to tightened bounds ``(|W|, 2)``.
+        The ``bounds`` argument is not modified (up to 0.8.0 it was updated
+        in place as well as returned, so a second call on the same dict
+        started from the previous fixed point).
     """
     order = graph.topological_order()  # leaves first
+    # Shallow copy: entries are replaced, never written in place, so this is
+    # enough to leave the caller's dict untouched.
+    bounds = dict(bounds)
 
     for iteration in range(max_iterations):
         max_change = 0.0
@@ -430,19 +439,49 @@ def upward_downward(
                     max_change = max(max_change, change)
 
             elif node.ftype == FormulaType.IMPLICATION:
-                # a → b = parent: if parent is high, b must be high
+                # a → b = parent, with parent = min(1, 1 - a + b).
+                # Sound Łukasiewicz inverses, from the two sides of the
+                # parent interval:
+                #   parent >= L_p holds whether or not the clamp is active
+                #   (if it is, 1 - a + b >= 1 >= L_p), so
+                #     b >= L_p + a - 1 → L_b ← max(L_b, L_p + L_a - 1)  (MP)
+                #     a <= 1 - L_p + b → U_a ← min(U_a, 1 - L_p + U_b)  (MT)
+                #   parent <= U_p constrains 1 - a + b only where U_p < 1
+                #   (at U_p = 1 the clamp may be active and says nothing):
+                #     b <= U_p + a - 1 → U_b ← min(U_b, U_p + U_a - 1)
+                #     a >= 1 + b - U_p → L_a ← max(L_a, 1 + L_b - U_p)
+                # Up to 0.8.0 only the first rule ran, so `a → b` true with
+                # `b` false left `a` at [0, 1] instead of [0, 0].
                 a_name, b_name = node.children
+                old_a = bounds[a_name].clone()
                 old_b = bounds[b_name].clone()
-                # L_b >= L_parent + L_a - 1
-                new_L_b = torch.clamp(
-                    parent_b[..., 0] + bounds[a_name][..., 0] - 1.0,
-                    min=0.0,
+                L_p, U_p = parent_b[..., 0], parent_b[..., 1]
+                upper_informative = U_p < 1.0
+
+                new_L_b = torch.clamp(L_p + old_a[..., 0] - 1.0, min=0.0)
+                new_U_a = torch.clamp(1.0 - L_p + old_b[..., 1], max=1.0)
+                new_U_b = torch.where(
+                    upper_informative,
+                    torch.clamp(U_p + old_a[..., 1] - 1.0, min=0.0),
+                    torch.ones_like(U_p),
                 )
-                tightened_L_b = torch.max(old_b[..., 0], new_L_b)
-                bounds[b_name] = torch.stack([
-                    tightened_L_b, old_b[..., 1]
+                new_L_a = torch.where(
+                    upper_informative,
+                    torch.clamp(1.0 + old_b[..., 0] - U_p, max=1.0),
+                    torch.zeros_like(U_p),
+                )
+                bounds[a_name] = torch.stack([
+                    torch.max(old_a[..., 0], new_L_a),
+                    torch.min(old_a[..., 1], new_U_a),
                 ], dim=-1)
-                change = (bounds[b_name] - old_b).abs().max().item()
+                bounds[b_name] = torch.stack([
+                    torch.max(old_b[..., 0], new_L_b),
+                    torch.min(old_b[..., 1], new_U_b),
+                ], dim=-1)
+                change = max(
+                    (bounds[a_name] - old_a).abs().max().item(),
+                    (bounds[b_name] - old_b).abs().max().item(),
+                )
                 max_change = max(max_change, change)
 
             elif node.ftype == FormulaType.NECESSITY:

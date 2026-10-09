@@ -55,7 +55,11 @@ class Necessity(nn.Module):
 
     Args:
         tau: Temperature for soft aggregation. Default 0.1.
-        learnable_tau: If ``True``, temperature is learnable. Default False.
+        learnable_tau: If ``True``, temperature is an ``nn.Parameter`` that
+            receives gradient through the aggregation (the operator is
+            differentiable in ``tau``). Nothing keeps it positive: clamp it
+            after each optimiser step, or use :meth:`set_tau` with a schedule
+            instead. Default False.
         top_k: If set, aggregate only the ``top_k`` smallest implication
             terms per world and endpoint. Default ``None`` (full row).
 
@@ -100,13 +104,19 @@ class Necessity(nn.Module):
             ``(|W|, 2)`` or ``(|W|,)`` truth bounds for □ϕ.
         """
         return F.necessity(
-            prop_bounds, accessibility, tau=self.tau.item(), top_k=self.top_k
+            prop_bounds, accessibility, tau=self.tau, top_k=self.top_k
         )
 
     def set_tau(self, tau: float) -> None:
-        """Set temperature from a float (e.g. for annealing)."""
+        """Set temperature from a float (e.g. for annealing).
+
+        Works for both the buffer and the ``learnable_tau`` parameter; the
+        copy runs under ``torch.no_grad`` because an in-place write to a leaf
+        that requires grad is otherwise refused by autograd.
+        """
         t = torch.as_tensor(tau, device=self.tau.device, dtype=self.tau.dtype)
-        self.tau.copy_(t)
+        with torch.no_grad():
+            self.tau.copy_(t)
 
     def extra_repr(self) -> str:
         return f"tau={self.tau.item():.4f}, top_k={self.top_k}"
@@ -136,7 +146,9 @@ class Possibility(nn.Module):
 
     Args:
         tau: Temperature for soft aggregation. Default 0.1.
-        learnable_tau: If ``True``, temperature is learnable. Default False.
+        learnable_tau: If ``True``, temperature is an ``nn.Parameter`` that
+            receives gradient through the aggregation. See :class:`Necessity`
+            for the caveat on keeping it positive. Default False.
         top_k: If set, aggregate only the ``top_k`` largest conjunction
             terms per world and endpoint. Default ``None`` (full row).
 
@@ -176,13 +188,19 @@ class Possibility(nn.Module):
             ``(|W|, 2)`` or ``(|W|,)`` truth bounds for ♢ϕ.
         """
         return F.possibility(
-            prop_bounds, accessibility, tau=self.tau.item(), top_k=self.top_k
+            prop_bounds, accessibility, tau=self.tau, top_k=self.top_k
         )
 
     def set_tau(self, tau: float) -> None:
-        """Set temperature from a float (e.g. for annealing)."""
+        """Set temperature from a float (e.g. for annealing).
+
+        Works for both the buffer and the ``learnable_tau`` parameter; the
+        copy runs under ``torch.no_grad`` because an in-place write to a leaf
+        that requires grad is otherwise refused by autograd.
+        """
         t = torch.as_tensor(tau, device=self.tau.device, dtype=self.tau.dtype)
-        self.tau.copy_(t)
+        with torch.no_grad():
+            self.tau.copy_(t)
 
     def extra_repr(self) -> str:
         return f"tau={self.tau.item():.4f}, top_k={self.top_k}"

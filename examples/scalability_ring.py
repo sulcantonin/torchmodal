@@ -26,18 +26,18 @@ Uses:
   - torchmodal.build_ring_accessibility
 """
 
-import torch
-import torch.optim as optim
-import numpy as np
-
 # Make sure the local development torchmodal (../torchmodal) shadows any
 # PyPI-installed release, which lacks newer APIs and fails silently.
 import sys
 from pathlib import Path
+
+import numpy as np
+import torch
+import torch.optim as optim
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import torchmodal
-from torchmodal import functional as F
 
 
 def generate_ring_data(num_agents=20, num_props=100):

@@ -15,19 +15,18 @@ Uses:
   - Decision boundary visualization
 """
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import numpy as np
-
 # Make sure the local development torchmodal (../torchmodal) shadows any
 # PyPI-installed release, which lacks newer APIs and fails silently.
 import sys
 from pathlib import Path
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import torchmodal
-from torchmodal import functional as F
 
 SEED = 42
 
@@ -138,7 +137,10 @@ def main():
         (0.05, 0.9, "SPOOFING PATTERN"),
     ]
 
-    print(f"{'Duration':<10} | {'Size':<8} | {'Score':<10} | {'Verdict':<12} | {'Description'}")
+    print(
+        f"{'Duration':<10} | {'Size':<8} | {'Score':<10} | {'Verdict':<12} "
+        f"| {'Description'}"
+    )
     print("-" * 65)
 
     for dur, sz, desc in test_cases:
@@ -158,9 +160,10 @@ def main():
     fn = np.sum((preds == 1) & (true_labels == -1))
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0
     recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+    denom = precision + recall
+    f1 = 2 * precision * recall / denom if denom > 0 else 0
 
-    print(f"\nSpoof Detection Metrics:")
+    print("\nSpoof Detection Metrics:")
     print(f"  Precision: {precision:.1%}")
     print(f"  Recall:    {recall:.1%}")
     print(f"  F1-Score:  {f1:.1%}")

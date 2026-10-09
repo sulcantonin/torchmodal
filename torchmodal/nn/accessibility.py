@@ -12,11 +12,11 @@ Provides four parameterizations:
 - **MetricAccessibility**: Metric-learning parameterization using latent
   embeddings with inner-product kernel.  O(d·|W|) parameters — scales
   to |W| = 20,000+.
-- **AttentionAccessibility**: Multi-head self-attention over world
-  representations.  O(d²) parameters — suitable when worlds have rich
-  feature representations and the accessibility pattern is
-  context-dependent.  Addresses the reviewer concern (R1) that the
-  kernel parameterization is not the only sub-quadratic alternative.
+- **AttentionAccessibility**: Multi-head query/key attention scores over
+  world representations, squashed per edge by a sigmoid.  O(d²) parameters
+  — suitable when worlds have rich feature representations and the relation
+  is asymmetric.  Addresses the reviewer concern (R1) that the kernel
+  parameterization is not the only sub-quadratic alternative.
 
 **Top-k is not an accessibility-module concern.** Earlier releases took a
 ``top_k`` argument here and zeroed all but the *k* largest entries of each
@@ -38,8 +38,9 @@ about the sparsified frame.
 
 from __future__ import annotations
 
+import math
 import warnings
-from typing import Optional, cast
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -378,27 +379,43 @@ class MetricAccessibility(nn.Module):
 
 
 class AttentionAccessibility(nn.Module):
-    """Attention-based accessibility relation.
+    r"""Attention-based accessibility relation.
 
-    Uses multi-head self-attention over world representations to compute
-    a context-dependent accessibility matrix.  Unlike
-    :class:`MetricAccessibility` (which uses a fixed inner-product
-    kernel), attention weights are input-dependent and can capture
-    asymmetric relationships naturally.
+    Scores every ordered pair of worlds with multi-head query/key attention
+    over their feature vectors and squashes the score with a sigmoid:
 
-    The parameter count is O(d²) — independent of |W| — making this
-    suitable for settings where worlds have rich feature representations
-    (e.g., sentence embeddings in the Diplomacy experiment).
+    .. math::
+        A_{ij} = \sigma\Bigl(\frac{1}{h}\sum_{\text{heads}}
+            \frac{(W_q x_i)^\top (W_k x_j)}{\sqrt{d_h}} + b\Bigr)
 
-    This addresses Reviewer 1's observation that "if worlds were a space
-    of rich state representations rather than indices, directly learning
-    a kernel does not require quadratic parameters" by providing an
-    alternative that operates entirely in feature space.
+    Unlike :class:`MetricAccessibility` (a symmetric inner-product kernel),
+    separate query and key projections make the relation **asymmetric**:
+    world *i* can see *j* without *j* seeing *i*. The parameter count is
+    O(d²), independent of |W|, so it suits worlds with rich feature
+    representations (sentence embeddings, state encodings).
+
+    .. note::
+       **Sigmoid, not softmax.** Up to 0.8.0 this module returned the
+       row-softmax weights of ``nn.MultiheadAttention`` directly, so every
+       row summed to 1 and no entry could exceed ``1/|W|`` on average —
+       with 50 worlds the largest off-diagonal entry was 0.07. Fed to a □
+       neuron, such a relation makes nearly every world inaccessible and
+       the operator close to vacuous. An accessibility relation is a set
+       of *independent* graded edges, so each score is now squashed on its
+       own and ``A_ij = 1`` is reachable for every pair. The state-dict
+       layout changed with this (``q_proj`` / ``k_proj`` instead of
+       ``attn`` / ``proj``); checkpoints from earlier releases do not load.
 
     Args:
-        input_dim: Dimension of per-world feature vectors.
-        num_heads: Number of attention heads. Default 4.
+        input_dim: Dimension of per-world feature vectors. Must be
+            divisible by ``num_heads``.
+        num_heads: Number of attention heads; the per-head scores are
+            averaged. Default 4.
         reflexive: Enforce self-accessibility. Default ``True``.
+        init_bias: Constant added to every score before the sigmoid, so the
+            relation can start from a "prior of distrust" the way
+            :class:`LearnableAccessibility` does with its ``init_bias``.
+            Default 0.0 (every edge starts near 0.5).
         sparsify: If set, keep only the ``sparsify`` largest entries of
             each row and make every other world inaccessible (a sparser
             Kripke frame — a modelling choice, see :func:`top_k_mask`).
@@ -422,21 +439,24 @@ class AttentionAccessibility(nn.Module):
         reflexive: bool = True,
         top_k: Optional[int] = None,
         sparsify: Optional[int] = None,
+        init_bias: float = 0.0,
     ) -> None:
         super().__init__()
+        if input_dim % num_heads != 0:
+            raise ValueError(
+                f"input_dim ({input_dim}) must be divisible by num_heads "
+                f"({num_heads})"
+            )
         self.input_dim = input_dim
         self.num_heads = num_heads
         self.reflexive = reflexive
+        self.init_bias = init_bias
         if top_k is not None:
             _warn_top_k_deprecated(self)
         self.sparsify = sparsify
 
-        self.attn = nn.MultiheadAttention(
-            embed_dim=input_dim,
-            num_heads=num_heads,
-            batch_first=True,
-        )
-        self.proj = nn.Linear(input_dim, 1)
+        self.q_proj = nn.Linear(input_dim, input_dim)
+        self.k_proj = nn.Linear(input_dim, input_dim)
 
     def forward(self, features: Tensor) -> Tensor:
         """Compute the accessibility matrix from world features.
@@ -447,11 +467,15 @@ class AttentionAccessibility(nn.Module):
         Returns:
             Accessibility matrix ``(|W|, |W|)`` in [0, 1].
         """
-        # (1, |W|, d) for batch-first MHA
-        x = features.unsqueeze(0)
-        attn_out, attn_weights = self.attn(x, x, x)
-        # attn_weights: (1, |W|, |W|) — already in [0, 1] (softmax)
-        A = attn_weights.squeeze(0)
+        n = features.shape[0]
+        head_dim = self.input_dim // self.num_heads
+        # (|W|, d) -> (heads, |W|, d_h)
+        q = self.q_proj(features).reshape(n, self.num_heads, head_dim)
+        k = self.k_proj(features).reshape(n, self.num_heads, head_dim)
+        q = q.transpose(0, 1)
+        k = k.transpose(0, 1)
+        scores = (q @ k.transpose(-1, -2)) / math.sqrt(head_dim)  # (h, W, W)
+        A = torch.sigmoid(scores.mean(dim=0) + self.init_bias)
 
         if self.reflexive:
             A = A.clone()
@@ -460,12 +484,13 @@ class AttentionAccessibility(nn.Module):
         if self.sparsify is not None:
             A = top_k_mask(A, self.sparsify)
 
-        return cast(Tensor, A)
+        return A
 
     def extra_repr(self) -> str:
         return (
             f"input_dim={self.input_dim}, "
             f"num_heads={self.num_heads}, "
             f"reflexive={self.reflexive}, "
+            f"init_bias={self.init_bias}, "
             f"sparsify={self.sparsify}"
         )
