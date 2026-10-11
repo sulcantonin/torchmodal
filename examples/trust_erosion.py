@@ -91,6 +91,7 @@ class NeurosymbolicMonitor(torch.nn.Module):
 
 
 def main():
+    torch.manual_seed(42)
     print("=" * 70)
     print("  Combined Trust Erosion: Temporal + Epistemic + Deontic Logic")
     print("=" * 70)
