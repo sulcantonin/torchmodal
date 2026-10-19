@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="705.601262pt" height="207.864pt" viewBox="0 0 705.601262 207.864" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.9.4, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 207.864 
+L 705.601262 207.864 
+L 705.601262 0 
+L 0 0 
+z
+" style="fill: #1a1a19"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 27.985263 154.305931 
+L 125.488421 154.305931 
+Q 132.536842 154.305931 132.536842 147.194317 
+L 132.536842 31.037959 
+Q 132.536842 23.926345 125.488421 23.926345 
+L 27.985263 23.926345 
+Q 20.936842 23.926345 20.936842 31.037959 
+L 20.936842 147.194317 
+Q 20.936842 154.305931 27.985263 154.305931 
+z
+" clip-path="url(#pb18abf8b14)" style="fill: #242423; stroke: #383835; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 166.016842 154.305931 
+L 263.52 154.305931 
+Q 270.568421 154.305931 270.568421 147.194317 
+L 270.568421 31.037959 
+Q 270.568421 23.926345 263.52 23.926345 
+L 166.016842 23.926345 
+Q 158.968421 23.926345 158.968421 31.037959 
+L 158.968421 147.194317 
+Q 158.968421 154.305931 166.016842 154.305931 
+z
+" clip-path="url(#pb18abf8b14)" style="fill: #242423; stroke: #383835; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 304.048421 154.305931 
+L 401.551579 154.305931 
+Q 408.6 154.305931 408.6 147.194317 
+L 408.6 31.037959 
+Q 408.6 23.926345 401.551579 23.926345 
+L 304.048421 23.926345 
+Q 297 23.926345 297 31.037959 
+L 297 147.194317 
+Q 297 154.305931 304.048421 154.305931 
+z
+" clip-path="url(#pb18abf8b14)" style="fill: #f0603f; stroke: #f0603f; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 442.08 154.305931 
+L 539.583158 154.305931 
+Q 546.631579 154.305931 546.631579 147.194317 
+L 546.631579 31.037959 
+Q 546.631579 23.926345 539.583158 23.926345 
+L 442.08 23.926345 
+Q 435.031579 23.926345 435.031579 31.037959 
+L 435.031579 147.194317 
+Q 435.031579 154.305931 442.08 154.305931 
+z
+" clip-path="url(#pb18abf8b14)" style="fill: #242423; stroke: #383835; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 580.111579 154.305931 
+L 677.614737 154.305931 
+Q 684.663158 154.305931 684.663158 147.194317 
+L 684.663158 31.037959 
+Q 684.663158 23.926345 677.614737 23.926345 
+L 580.111579 23.926345 
+Q 573.063158 23.926345 573.063158 31.037959 
+L 573.063158 147.194317 
+Q 573.063158 154.305931 580.111579 154.305931 
+z
+" clip-path="url(#pb18abf8b14)" style="fill: #242423; stroke: #383835; stroke-width: 1.2; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="fill: #f0efec; font: 700 11.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'; text-anchor: start" x="29.747368" y="46.953926" transform="rotate(-0 29.747368 46.953926)">1 · Worlds</text>
+   </g>
+   <g id="text_2">
+    <text style="fill: #c3c2b7; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(29.747368 75.157525)">agents, time steps,</text>
+    <text style="fill: #c3c2b7; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(29.747368 86.979829)">contexts, cells…</text>
+    <text style="fill: #c3c2b7; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(29.747368 98.687837)">and a relation A</text>
+    <text style="fill: #c3c2b7; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(29.747368 110.395845)">between them</text>
+   </g>
+   <g id="patch_7">
+    <path d="M 136.883956 89.116138 
+Q 145.751693 89.116138 152.942379 89.116138 
+" style="fill: none; stroke: #898781; stroke-width: 1.5; stroke-linecap: round"/>
+    <path d="M 148.542379 86.916138 
+L 152.942379 89.116138 
+L 148.542379 91.316138 
+z
+" style="fill: #898781; stroke: #898781; stroke-width: 1.5; stroke-linecap: round"/>
+   </g>
+   <g id="text_3">
+    <text style="fill: #f0efec; font: 700 11.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'; text-anchor: start" x="167.778947" y="46.953926" transform="rotate(-0 167.778947 46.953926)">2 · Bounds</text>
+   </g>
+   <g id="text_4">
+    <text style="fill: #c3c2b7; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(167.778947 75.157525)">every proposition</text>
+    <text style="fill: #c3c2b7; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(167.778947 86.960533)">holds in every world</text>
+    <text style="fill: #c3c2b7; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(167.778947 98.995994)">within [L, U]</text>
+   </g>
+   <g id="patch_8">
+    <path d="M 274.915535 89.116138 
+Q 283.783272 89.116138 290.973958 89.116138 
+" style="fill: none; stroke: #898781; stroke-width: 1.5; stroke-linecap: round"/>
+    <path d="M 286.573958 86.916138 
+L 290.973958 89.116138 
+L 286.573958 91.316138 
+z
+" style="fill: #898781; stroke: #898781; stroke-width: 1.5; stroke-linecap: round"/>
+   </g>
+   <g id="text_5">
+    <text style="fill: #ffffff; font: 700 11.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'; text-anchor: start" x="305.810526" y="46.953926" transform="rotate(-0 305.810526 46.953926)">3 · □ and ♢</text>
+   </g>
+   <g id="text_6">
+    <text style="fill: #ffffff; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(305.810526 75.157525)">necessity and</text>
+    <text style="fill: #ffffff; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(305.810526 86.960533)">possibility neurons:</text>
+    <text style="fill: #ffffff; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(305.810526 98.76354)">sound intervals</text>
+    <text style="fill: #ffffff; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(305.810526 110.471548)">across worlds</text>
+   </g>
+   <g id="patch_9">
+    <path d="M 412.947114 89.116138 
+Q 421.814851 89.116138 429.005537 89.116138 
+" style="fill: none; stroke: #898781; stroke-width: 1.5; stroke-linecap: round"/>
+    <path d="M 424.605537 86.916138 
+L 429.005537 89.116138 
+L 424.605537 91.316138 
+z
+" style="fill: #898781; stroke: #898781; stroke-width: 1.5; stroke-linecap: round"/>
+   </g>
+   <g id="text_7">
+    <text style="fill: #f0efec; font: 700 11.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'; text-anchor: start" x="443.842105" y="46.953926" transform="rotate(-0 443.842105 46.953926)">4 · Learn</text>
+   </g>
+   <g id="text_8">
+    <text style="fill: #c3c2b7; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(443.842105 75.157525)">contradiction loss</text>
+    <text style="fill: #c3c2b7; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(443.842105 86.865533)">L &gt; U trains the</text>
+    <text style="fill: #c3c2b7; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(443.842105 98.805994)">propositions and/or</text>
+    <text style="fill: #c3c2b7; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(443.842105 110.514001)">the relation A_θ</text>
+   </g>
+   <g id="patch_10">
+    <path d="M 550.978693 89.116138 
+Q 559.84643 89.116138 567.037116 89.116138 
+" style="fill: none; stroke: #898781; stroke-width: 1.5; stroke-linecap: round"/>
+    <path d="M 562.637116 86.916138 
+L 567.037116 89.116138 
+L 562.637116 91.316138 
+z
+" style="fill: #898781; stroke: #898781; stroke-width: 1.5; stroke-linecap: round"/>
+   </g>
+   <g id="text_9">
+    <text style="fill: #f0efec; font: 700 11.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'; text-anchor: start" x="581.873684" y="47.147988" transform="rotate(-0 581.873684 47.147988)">5 · Certify</text>
+   </g>
+   <g id="text_10">
+    <text style="fill: #c3c2b7; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(581.873684 75.157525)">round A, evaluate</text>
+    <text style="fill: #c3c2b7; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(581.873684 87.097986)">exactly: PROVEN /</text>
+    <text style="fill: #c3c2b7; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'" transform="translate(581.873684 98.900994)">REFUTED / UNDECIDED</text>
+   </g>
+   <g id="text_11">
+    <text style="fill: #898781; font: 9.5px 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans'; text-anchor: start" x="20.936842" y="178.944262" transform="rotate(-0 20.936842 178.944262)">steps 1–4 are batched, differentiable PyTorch ops; step 5 runs at zero temperature and gives an answer with no gap in it</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pb18abf8b14">
+   <rect x="18" y="18" width="669.6" height="171.864"/>
+  </clipPath>
+ </defs>
+</svg>

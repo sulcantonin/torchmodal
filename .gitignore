@@ -29,3 +29,7 @@ examples/figures/
 
 # Manuscript sources, kept local
 paper/
+
+# Local-only: CI config and draft/manuscript PDFs are not part of the public package
+.github/
+misc/*.pdf

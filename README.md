@@ -1,24 +1,34 @@
 <p align="center">
-  <img src="https://github.com/sulcantonin/torchmodal/blob/main/misc/torchmodal.png" alt="torchmodal" width="640">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/sulcantonin/torchmodal/main/docs/logo/wordmark-dark.svg">
+    <img src="https://raw.githubusercontent.com/sulcantonin/torchmodal/main/docs/logo/wordmark-light.svg" alt="torchmodal" width="460">
+  </picture>
 </p>
 
 <p align="center">
   <a href="https://pypi.org/project/torchmodal/"><img src="https://img.shields.io/pypi/v/torchmodal" alt="PyPI"></a>
   <a href="https://pypi.org/project/torchmodal/"><img src="https://img.shields.io/pypi/pyversions/torchmodal" alt="Python"></a>
-  <a href="https://github.com/sulcantonin/torchmodal/actions/workflows/ci.yml"><img src="https://github.com/sulcantonin/torchmodal/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://codecov.io/gh/sulcantonin/torchmodal"><img src="https://codecov.io/gh/sulcantonin/torchmodal/branch/main/graph/badge.svg" alt="codecov"></a>
   <a href="https://sulcantonin.github.io/torchmodal/"><img src="https://img.shields.io/badge/docs-mkdocs-blue" alt="Docs"></a>
   <a href="https://doi.org/10.5281/zenodo.22825059"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22825059.svg" alt="DOI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
 </p>
 
-<h1 align="center">torchmodal</h1>
-<p align="center"><strong>Differentiable modal logic for PyTorch.</strong></p>
+<p align="center"><strong>Differentiable modal logic for PyTorch.</strong><br>
+Reason about what holds in <em>every</em> or <em>some</em> reachable world, with bounds you can trust and a relation you can learn.</p>
+
+<p align="center"><b>New to modal logic? Start with the <a href="docs/visual-guide.md">visual guide</a></b>: eight pictures, no theory required.</p>
+
+---
 
 torchmodal turns the modal operators **□ (necessity)** and **♢ (possibility)** into trainable
 layers over a Kripke structure. Every truth value is an interval `[L, U]` that **provably
 brackets** the crisp modal-logic answer, and the accessibility relation between worlds can be
 **learned by gradient descent** instead of being specified.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/sulcantonin/torchmodal/main/docs/figures/pipeline-dark.svg">
+  <img src="https://raw.githubusercontent.com/sulcantonin/torchmodal/main/docs/figures/pipeline-light.svg" alt="Five steps: worlds and a relation, bounds per world, necessity and possibility neurons, learning with a contradiction loss, and exact certification.">
+</picture>
 
 > 📣 **Oral at [NeSy 2026](https://openreview.net/pdf?id=uLOdtBm0Cx)**, the 20th Conference on
 > Neurosymbolic Learning and Reasoning. *Modal Logic Neural Networks*, Antonin Sulc (Lawrence
@@ -27,6 +37,7 @@ brackets** the crisp modal-logic answer, and the accessibility relation between 
 
 ## Contents
 
+- [Visual guide](docs/visual-guide.md) (start here if modal logic is new to you)
 - [Installation](#installation)
 - [A classic epistemic puzzle, in ten lines](#a-classic-epistemic-puzzle-in-ten-lines)
 - [Quick start](#quick-start)
@@ -79,6 +90,11 @@ round 1: child 0 knows it is muddy -> [0.000, 0.000]
 round 2: child 0 knows it is muddy -> [0.000, 0.000]
 round 3: child 0 knows it is muddy -> [0.920, 1.000]
 ```
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/sulcantonin/torchmodal/main/docs/figures/muddy-dark.svg">
+  <img src="https://raw.githubusercontent.com/sulcantonin/torchmodal/main/docs/figures/muddy-light.svg" alt="Three cubes of eight worlds; each round removes worlds until only 111 remains. Right: whether each child knows it is muddy, per round: no, no, then yes for all three.">
+</picture>
 
 The textbook answer, *no, no, yes*, falls out of the modal operator alone, and every interval
 contains it. [`examples/muddy_children.py`](examples/muddy_children.py) checks all three
@@ -204,6 +220,11 @@ gradients per endpoint. `assert_has_signal(...)` is the raising variant for test
 
 ## Core concepts
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/sulcantonin/torchmodal/main/docs/figures/kripke-dark.svg">
+  <img src="https://raw.githubusercontent.com/sulcantonin/torchmodal/main/docs/figures/kripke-light.svg" alt="The same five-world graph three times: the valuation p, then box p and diamond p with their soft intervals.">
+</picture>
+
 A Kripke model `M = ⟨W, R, V⟩` is realised as tensors:
 
 - **W** (worlds): a finite set of agents, time steps, or contexts
@@ -309,6 +330,11 @@ neighbour realises it, so no canonical per-world constraint exists. The two pass
 A graded relation is not a Kripke frame, so a statement about it is not a statement about
 anything checkable. `torchmodal.verify` closes that loop:
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/sulcantonin/torchmodal/main/docs/figures/certify-dark.svg">
+  <img src="https://raw.githubusercontent.com/sulcantonin/torchmodal/main/docs/figures/certify-light.svg" alt="Left: a graded learned relation with a certain goal and an uncertain one. Right: the rounded frame with each world marked PROVEN, REFUTED or UNDECIDED, and the witness path highlighted.">
+</picture>
+
 ```python
 from torchmodal import verify
 
@@ -334,7 +360,8 @@ know is more useful than one that rounds.
 
 ### Scripts
 
-Every script in [`examples/`](examples/) is self-contained and smoke-tested in CI:
+Every script in [`examples/`](examples/) is self-contained; `python scripts/run_examples.py`
+smoke-tests them all:
 
 ```bash
 python examples/muddy_children.py
@@ -383,6 +410,8 @@ list with numbers is in [docs/limitations.md](docs/limitations.md).
 
 ## Documentation and support
 
+- **Visual guide**: [docs/visual-guide.md](docs/visual-guide.md), every figure regenerated by
+  `python docs/make_figures.py`
 - **API reference and guides**: <https://sulcantonin.github.io/torchmodal/>
 - **Bugs and questions**: [GitHub issues](https://github.com/sulcantonin/torchmodal/issues);
   [SUPPORT.md](SUPPORT.md) says what makes a report actionable. If a constraint "has no

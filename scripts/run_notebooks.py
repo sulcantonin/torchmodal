@@ -4,7 +4,7 @@
 The notebooks carry Colab badges, so a reader's first contact with this
 library may be running one. A notebook that raises halfway is worse than no
 notebook. The pip-install cell is stripped, since the checkout is already
-importable in CI.
+importable from the checkout.
 """
 
 from __future__ import annotations

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="torchmodal">
+  <defs>
+    <linearGradient id="core" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#C2361F"/><stop offset="1" stop-color="#FFB547"/>
+    </linearGradient>
+  </defs>
+  <!-- the possibility diamond ♢ with a torch flame burning inside it -->
+  <path d="M100 12 L188 100 L100 188 L12 100 Z" fill="#E8492F" fill-opacity="0.14"
+        stroke="#E8492F" stroke-width="9" stroke-linejoin="round"/>
+  <path d="M100 52 C112 72 132 86 132 113 C132 135 118 150 100 150 C82 150 68 135 68 113 C68 96 78 85 85 75 C87 88 92 96 99 99 C96 83 96 68 100 52 Z"
+        fill="url(#core)"/>
+</svg>

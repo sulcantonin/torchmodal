@@ -4,9 +4,7 @@
 
 | I want to… | Go to |
 |---|---|
-| Report a bug | [Open a bug report](https://github.com/sulcantonin/torchmodal/issues/new?template=bug_report.yml) |
-| Request a feature | [Open a feature request](https://github.com/sulcantonin/torchmodal/issues/new?template=feature_request.yml) |
-| Ask how to model something | [Open a question issue](https://github.com/sulcantonin/torchmodal/issues/new?template=question.yml) |
+| Report a bug, request a feature, or ask how to model something | [Open an issue](https://github.com/sulcantonin/torchmodal/issues/new) |
 | Read the API reference | [sulcantonin.github.io/torchmodal](https://sulcantonin.github.io/torchmodal/) |
 | Understand a trap or caveat | [Limitations](https://sulcantonin.github.io/torchmodal/limitations/) |
 | Contribute | [CONTRIBUTING.md](CONTRIBUTING.md) |

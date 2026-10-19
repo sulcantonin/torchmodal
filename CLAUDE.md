@@ -176,6 +176,10 @@ torchmodal/
 │   ├── baseline_comparison.py      # Semantic Loss / non-modal baselines side-by-side
 │   ├── MLNN_AccesbilityScalabilityAblation.ipynb  # dense-vs-metric sweep, N=20→20k
 │   └── ...                   # Additional examples
+├── docs/
+│   ├── visual-guide.md       # beginner walkthrough, one figure per section
+│   ├── make_figures.py       # regenerates docs/figures/*-{light,dark}.svg
+│   └── logo/                 # logo concepts + wordmarks
 ├── CLAUDE.md                 # ← you are here
 ├── CHANGELOG.md              # Release history (current: 0.9.0)
 ├── README.md
