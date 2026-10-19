@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Smoke-test every script in examples/.
 
-A reviewer will run these, so CI runs them too. Each script must exit 0 and
+A reviewer will run these, so run this before every release. Each script must exit 0 and
 print something; a script that runs but produces no output is treated as a
 failure, since every example here is meant to demonstrate a result.
 
 The benchmark scripts honour the ``MLNN_*_SMOKE`` environment variables and
 are given a longer budget. Nothing is skipped: an example that cannot be run
-in CI is an example that will break without anyone noticing.
+unattended is an example that will break without anyone noticing.
 
 **Committed artefacts are restored afterwards.** Several benchmarks write into
 ``examples/coloring_results/``, ``examples/sudoku_results/`` and

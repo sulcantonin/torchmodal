@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="torchmodal">
+  <defs>
+    <marker id="h" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#5B6178"/>
+    </marker>
+    <linearGradient id="core" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#C2361F"/><stop offset="1" stop-color="#FF8A5B"/>
+    </linearGradient>
+  </defs>
+  <!-- three possible worlds and their accessibility arrows; the top world is lit -->
+  <g stroke="#5B6178" stroke-width="7" stroke-linecap="round" fill="none" marker-end="url(#h)">
+    <path d="M84 72 L54 122"/>
+    <path d="M70 158 L128 158"/>
+    <path d="M146 130 L118 76"/>
+  </g>
+  <circle cx="100" cy="48" r="28" fill="url(#core)"/>
+  <circle cx="46" cy="152" r="24" fill="#E8492F" fill-opacity="0.14" stroke="#E8492F" stroke-width="7"/>
+  <circle cx="154" cy="152" r="24" fill="#E8492F" fill-opacity="0.14" stroke="#E8492F" stroke-width="7"/>
+</svg>

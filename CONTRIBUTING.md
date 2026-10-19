@@ -37,7 +37,7 @@ ruff check torchmodal/ tests/ examples/  # must be clean
 mypy torchmodal/                         # must be clean
 ```
 
-`mypy` has been clean since 0.8.0 and CI gates on it; a new `# type: ignore`
+`mypy` has been clean since 0.8.0 and must stay that way; a new `# type: ignore`
 needs a comment saying why.
 
 ## Conventions

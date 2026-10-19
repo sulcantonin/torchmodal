@@ -6,6 +6,20 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Visual guide** (`docs/visual-guide.md`): eight figures, each computed by the
+  library (`docs/make_figures.py`, light and dark SVG), with runnable snippets
+  covering □/♢, the [L, U] bracket and τ, muddy children, learning `A_θ`,
+  the nesting floor, Until, and `round_and_certify`.
+- Logo concepts in `docs/logo/`; the README header now uses the □-in-♢ wordmark.
+
+### Removed
+
+- `.github/` (CI workflows, issue templates) and the draft PDFs in `misc/` are
+  no longer tracked. The README's CI and Codecov badges went with them, and
+  `SUPPORT.md` links to a plain new-issue page.
+
 ## [0.9.0] — 2026-10-09
 
 An audit release. A line-by-line review of the package found a handful of
